@@ -26,6 +26,14 @@ export interface FeedbackEntry {
   id: string
   addressId: string
   dwelling: string | null
+  /**
+   * Dwelling of the building (15/10/2026): a known unit, or a new one added on the phone with its label. Optional:
+   * feedback queued by an earlier version has none.
+   */
+  dwellingUnitId?: string | null
+  dwellingUnitLabel?: string | null
+  /** The household met is not on the electoral list. */
+  nonRegistered?: boolean
   contact: "obtenu" | "absent" | null
   contactQuality: "chaleureux" | "poli" | "ferme" | null
   toAccompany: boolean

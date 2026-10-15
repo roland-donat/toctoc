@@ -1,5 +1,6 @@
 import { index, integer, sqliteTable, text } from "drizzle-orm/sqlite-core"
 import { addresses } from "./addresses.ts"
+import { dwellingUnits } from "./dwelling-units.ts"
 
 /** Visit feedback ("retour"), always attached to an address, never to an elector (KTD12). */
 export const visits = sqliteTable(
@@ -12,6 +13,10 @@ export const visits = sqliteTable(
       .references(() => addresses.id),
     /** Free text: apartment, floor, name on the mailbox (R17). Treated as nominative (KTD7). */
     dwelling: text("dwelling"),
+    /** Dwelling of the building the feedback is about, when the volunteer picked or added one. */
+    dwellingUnitId: text("dwelling_unit_id").references(() => dwellingUnits.id),
+    /** The household met is not on the electoral list: a registration to go and get. */
+    nonRegistered: integer("non_registered", { mode: "boolean" }).notNull().default(false),
     /** ISO date of the visit itself, distinct from the entry time. */
     visitDate: text("visit_date").notNull(),
     recordedAt: integer("recorded_at").notNull(),

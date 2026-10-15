@@ -1,7 +1,7 @@
 import { useEffect } from "react"
 import { CircleMarker, MapContainer, Marker, Polygon, Polyline, TileLayer, useMap, useMapEvents } from "react-leaflet"
 import L from "leaflet"
-import { FRANCE_VIEW } from "@/components/door-map"
+import { fitWhenIdle, FRANCE_VIEW } from "@/components/door-map"
 import { Button } from "@/components/ui/button"
 import { CATEGORY_COLORS, type MapAddress } from "@/lib/carte-api"
 import type { LatLon } from "@/lib/itineraires-api"
@@ -58,7 +58,7 @@ function FitTo({ points }: { points: [number, number][] }) {
   const map = useMap()
   useEffect(() => {
     if (points.length === 0) return
-    map.fitBounds(L.latLngBounds(points), { padding: [40, 40], maxZoom: 17 })
+    fitWhenIdle(map, L.latLngBounds(points), { padding: [40, 40], maxZoom: 17 })
     // Only when the background doors first arrive, not on every redraw.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [points.length === 0, map])

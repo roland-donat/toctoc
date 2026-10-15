@@ -35,8 +35,18 @@ export interface FieldDoor {
   ageBands: AgeBand[]
   cheatsheets: FieldCheatsheet[]
   lastPassage: FieldPassage | null
+  /** Dwellings of the building with their latest feedback; labels carry no name. */
+  units: FieldUnit[]
   done: boolean
   voters: FieldVoter[]
+}
+
+export interface FieldUnit {
+  id: string
+  label: string
+  /** Electors of the list registered at this dwelling. */
+  registered: number
+  lastVisit: { visitDate: string; contact: "obtenu" | "absent" | null; toRevisit: boolean; nonRegistered: boolean } | null
 }
 
 export interface FieldLoop {
@@ -78,6 +88,8 @@ function requestOf(item: QueueItem): { url: string; method: "POST" | "PATCH" | "
   if (item.op === "delete") return { url, method: "DELETE" }
   const fields = {
     dwelling: entry.dwelling,
+    dwellingUnitId: entry.dwellingUnitId ?? null,
+    nonRegistered: entry.nonRegistered ?? false,
     contact: entry.contact,
     contactQuality: entry.contactQuality,
     toAccompany: entry.toAccompany,

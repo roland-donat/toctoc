@@ -19,12 +19,22 @@ interface DoorMapProps {
   onSelect: (id: string) => void
 }
 
+/**
+ * Leaflet drops a view change asked while a zoom animation runs (two filters picked in a row): the fit then waits
+ * for the end of that animation. `_animatingZoom` is a Leaflet 1.9 internal, like those the offset circle uses.
+ */
+export function fitWhenIdle(map: L.Map, bounds: L.LatLngBounds, options: L.FitBoundsOptions): void {
+  const animating = (map as unknown as { _animatingZoom?: boolean })._animatingZoom === true
+  if (animating) map.once("zoomend", () => map.fitBounds(bounds, options))
+  else map.fitBounds(bounds, options)
+}
+
 function FitToDoors({ addresses, fitKey }: { addresses: MapAddress[]; fitKey: string }) {
   const map = useMap()
   useEffect(() => {
     if (addresses.length === 0) return
     const bounds = L.latLngBounds(addresses.map((a) => [a.lat, a.lon] as L.LatLngTuple))
-    map.fitBounds(bounds, { padding: [40, 40], maxZoom: 17 })
+    fitWhenIdle(map, bounds, { padding: [40, 40], maxZoom: 17 })
     // Only on a new filter set, not on every refetch of the same one.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [fitKey, addresses.length === 0, map])

@@ -11,8 +11,8 @@ export default defineConfig({
     baseURL: "http://127.0.0.1:3100",
   },
   projects: [
-    { name: "desktop", use: { ...devices["Desktop Chrome"] }, testIgnore: /terrain\.spec\.ts/ },
-    { name: "phone", use: { ...devices["Pixel 7"] }, testMatch: /terrain\.spec\.ts/ },
+    { name: "desktop", use: { ...devices["Desktop Chrome"] }, testIgnore: /(terrain|logements)\.spec\.ts/ },
+    { name: "phone", use: { ...devices["Pixel 7"] }, testMatch: /(terrain|logements)\.spec\.ts/ },
   ],
   webServer: {
     command: "pnpm build && tsx e2e/prepare.ts && TOCTOC_CONFIG=/tmp/toctoc-e2e/config.json NODE_ENV=production tsx server/index.ts",

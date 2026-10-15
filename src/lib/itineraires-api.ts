@@ -1,5 +1,5 @@
 import { fetchJSON } from "./api-client"
-import type { AgeBand, Category, FollowUp, SheetVisit } from "./carte-api"
+import type { AgeBand, Category, FollowUp, SheetUnit, SheetVisit } from "./carte-api"
 import type { FeedbackEntry } from "./feedback-queue"
 
 // Itineraries (U11): generation from a zone and a duration, list, detail and door adjustments.
@@ -176,6 +176,8 @@ export interface SheetDoor {
   dwellings: number | null
   ageBands: AgeBand[]
   lastPassage: SheetPassage | null
+  /** Dwellings of the building, printed as lines to tick. */
+  units: SheetUnit[]
   voters: PrintedVoter[]
 }
 

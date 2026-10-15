@@ -1,6 +1,7 @@
 // Doors of an itinerary as handed to the canvassers, shared by the field link (U12) and the printed sheet (U13)
 // so both apply the same name rule (KTD7) and never carry a birthplace (R25).
 import { and, asc, eq, inArray } from "drizzle-orm"
+import { unitsByAddress, type UnitView } from "./dwelling-units.ts"
 import type { AppContext } from "../context.ts"
 import type { AgeBand, CheatsheetBand } from "../db/schema/cheatsheets.ts"
 import { addresses, cheatsheets, electors, itineraryDoors, registrations, visits } from "../db/schema/index.ts"
@@ -42,6 +43,8 @@ export interface CanvassDoor {
   ageBands: AgeBand[]
   cheatsheets: DoorCheatsheet[]
   lastPassage: DoorPassage | null
+  /** Dwellings of the building, with their latest feedback (15/10/2026); labels carry no name. */
+  units: UnitView[]
   /** Time of the latest feedback recorded on the door, any source; null when none. */
   lastRecordedAt: number | null
   /** Names of the targeted voters, empty unless `namesAllowed` was true. */
@@ -132,6 +135,7 @@ export function canvassDoors(ctx: AppContext, itineraryId: string, options: { na
     }
   }
   const voters = options.namesAllowed ? votersByAddress(ctx, ids) : new Map<string, DoorVoter[]>()
+  const units = unitsByAddress(ctx, ids)
 
   return doors.map((d) => {
     const status = statuses.get(d.addressId)
@@ -155,6 +159,7 @@ export function canvassDoors(ctx: AppContext, itineraryId: string, options: { na
             qualification: p.qualification === "annulation" ? null : p.qualification,
           }
         : null,
+      units: units.get(d.addressId) ?? [],
       lastRecordedAt: latestRecorded.get(d.addressId) ?? null,
       voters: voters.get(d.addressId) ?? [],
     }

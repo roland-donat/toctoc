@@ -237,6 +237,8 @@ describe("corrections and removals in the queue", () => {
       url: `/api/terrain/retours/${ID1}`,
       body: {
         dwelling: "apt 4",
+        dwellingUnitId: null,
+        nonRegistered: false,
         contact: "absent",
         contactQuality: null,
         toAccompany: false,

@@ -10,6 +10,7 @@ import { mkdir, writeFile } from "node:fs/promises"
 import { join } from "node:path"
 import { eq, isNull } from "drizzle-orm"
 import Papa from "papaparse"
+import { syncListUnits } from "./dwelling-units.ts"
 import type { AppContext } from "../context.ts"
 import { addresses, electors, imports, registrations } from "../db/schema/index.ts"
 import { matchKey, normalizeText } from "../domain/address-normalize.ts"
@@ -505,6 +506,8 @@ export function commitRepImport(ctx: AppContext, pending: PendingRepImport): Rep
           manualCarriedOver: changes.manualCarriedOver,
         }
   const result: RepImportResult = { ...counts, reimport }
+  // Dwellings read from the address complements of the new list (15/10/2026).
+  syncListUnits(ctx)
   logInfo("rep_import_confirmed", {
     rows: result.rows,
     electors: result.electors,

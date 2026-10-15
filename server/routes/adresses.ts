@@ -1,8 +1,11 @@
 // Address sheet (R9): registered voters of the current list, dwellings, dated feedback history.
 // Names and feedback free texts go through `anonymize` (KTD7); the birthplace is never served here.
+import { randomUUID } from "node:crypto"
 import { and, eq, inArray } from "drizzle-orm"
 import { Hono } from "hono"
 import { z } from "zod"
+import { cleanUnitLabel, UNIT_LABEL_MAX } from "../domain/dwelling-units.ts"
+import { addUnit, unitsByAddress, UnitError, updateUnit, type UnitView } from "../services/dwelling-units.ts"
 import type { AppContext } from "../context.ts"
 import { readJson } from "../lib/http.ts"
 import { addresses, commerces, electors, registrations, voteHistory } from "../db/schema/index.ts"
@@ -46,6 +49,10 @@ export interface AddressSheet {
   /** Qualification excluding the address (R5), which the administrator may cancel; null otherwise. */
   exclusion: ExclusionQualification | null
   voters: SheetVoter[]
+  /** Dwellings of the building with their latest feedback (15/10/2026). */
+  units: UnitView[]
+  /** Households met that are not on the electoral list. */
+  nonRegisteredMet: number
   visits: Visit[]
 }
 
@@ -147,6 +154,8 @@ function addressSheet(ctx: AppContext, id: string): AddressSheet | null {
     commerce: kinds.length === 0 ? null : { kinds: [...new Set(kinds)].sort(), dismissed: place.commerceDismissedAt !== null },
     exclusion: activeExclusion(history),
     voters: sheetVoters(ctx, id),
+    units: unitsByAddress(ctx, [id]).get(id) ?? [],
+    nonRegisteredMet: history.filter((v) => v.nonRegistered).length,
     visits: history,
   }
 }
@@ -184,6 +193,36 @@ export function adressesRoutes(ctx: AppContext): Hono {
       .all()[0]
     if (!updated) return c.json({ error: "address_not_found" }, 404)
     return c.json(updated)
+  })
+
+  // Dwellings of the building: added, renamed or removed by the administrator.
+  const unitLabelSchema = z.object({ label: z.string().min(1).max(UNIT_LABEL_MAX) }).strict()
+  const unitPatchSchema = z
+    .object({ label: z.string().min(1).max(UNIT_LABEL_MAX).optional(), retired: z.boolean().optional() })
+    .strict()
+    .refine((v) => v.label !== undefined || v.retired !== undefined)
+
+  app.post("/:id/logements", async (c) => {
+    const parsed = unitLabelSchema.safeParse(await readJson(c.req.raw))
+    if (!parsed.success) return c.json({ error: "invalid_body" }, 400)
+    const addressId = c.req.param("id")
+    const exists = ctx.db.select({ id: addresses.id }).from(addresses).where(eq(addresses.id, addressId)).get()
+    if (!exists) return c.json({ error: "address_not_found" }, 404)
+    const label = cleanUnitLabel(parsed.data.label)
+    if (label === null) return c.json({ error: "unit_label_required" }, 422)
+    return c.json({ id: addUnit(ctx, { id: randomUUID(), addressId, label, source: "admin" }) }, 201)
+  })
+
+  app.patch("/:id/logements/:unitId", async (c) => {
+    const parsed = unitPatchSchema.safeParse(await readJson(c.req.raw))
+    if (!parsed.success) return c.json({ error: "invalid_body" }, 400)
+    try {
+      updateUnit(ctx, c.req.param("id"), c.req.param("unitId"), parsed.data)
+      return c.json({ id: c.req.param("unitId") })
+    } catch (err) {
+      if (err instanceof UnitError) return c.json({ error: err.code }, err.code === "unit_label_required" ? 422 : 404)
+      throw err
+    }
   })
 
   return app

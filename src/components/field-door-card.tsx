@@ -19,7 +19,7 @@ import {
 import type { FeedbackEntry, QueueItem } from "@/lib/feedback-queue"
 import { parisCalendarDate, parisLongDateFormat } from "@/lib/format"
 import type { AgeBand } from "@/lib/carte-api"
-import type { FieldDoor } from "@/lib/terrain-api"
+import type { FieldDoor, FieldUnit } from "@/lib/terrain-api"
 
 // One door of the field loop (U12): address, dwellings, age bands, cheat sheets, last passage, and the R18
 // feedback form with large single-tap choices. A building door takes several feedbacks.
@@ -85,26 +85,63 @@ function ChoiceRow<T extends string>({
   )
 }
 
-function feedbackSummary(e: FeedbackEntry): string {
+/** Choice of the dwelling in the form: none (the building as a whole), a known unit, or a new one. */
+const NO_UNIT = ""
+const NEW_UNIT = "nouveau"
+
+/** Units of the door: those of the server, plus those added on this phone during the session. */
+export function knownUnits(door: FieldDoor, entered: FeedbackEntry[]): FieldUnit[] {
+  const units = [...door.units]
+  for (const e of entered) {
+    if (e.dwellingUnitId && e.dwellingUnitLabel && !units.some((u) => u.id === e.dwellingUnitId)) {
+      units.push({ id: e.dwellingUnitId, label: e.dwellingUnitLabel, registered: 0, lastVisit: null })
+    }
+  }
+  return units
+}
+
+/** What is known of a unit: the feedback entered this session, else the latest one on the server. */
+function unitOutcome(unit: FieldUnit, entered: FeedbackEntry[]): { state: "jamais" | "fait" | "a_revoir"; text: string } {
+  const mine = [...entered].reverse().find((e) => e.dwellingUnitId === unit.id)
+  const last = mine
+    ? { contact: mine.contact, toRevisit: mine.toRevisit, nonRegistered: mine.nonRegistered ?? false, visitDate: mine.visitDate }
+    : unit.lastVisit
+  if (!last) return { state: "jamais", text: unit.registered > 0 ? `${unit.registered} inscrit${unit.registered > 1 ? "s" : ""}, jamais visité` : "Jamais visité" }
+  const outcome = [
+    last.contact === "obtenu" ? "contact" : last.contact === "absent" ? "absent" : "qualifié",
+    last.toRevisit ? "à revenir" : null,
+    last.nonRegistered ? "non inscrit" : null,
+  ].filter((p): p is string => p !== null)
+  return { state: last.toRevisit ? "a_revoir" : "fait", text: `${mine ? "Aujourd'hui" : `Le ${formatLongDate(last.visitDate)}`} : ${outcome.join(", ")}` }
+}
+
+function feedbackSummary(e: FeedbackEntry, units: FieldUnit[]): string {
+  const unit = e.dwellingUnitId ? (units.find((u) => u.id === e.dwellingUnitId)?.label ?? e.dwellingUnitLabel) : null
   const parts = [
     e.contact ? CONTACT_LABELS[e.contact].toLowerCase() : null,
     e.contactQuality ? QUALITY_LABELS[e.contactQuality].toLowerCase() : null,
     e.toAccompany ? "à accompagner" : null,
     e.toRevisit ? "à revenir" : null,
     e.qualification ? QUALIFICATION_LABELS[e.qualification].toLowerCase() : null,
+    e.nonRegistered ? "foyer non inscrit" : null,
   ].filter((p): p is string => p !== null)
-  return `${e.dwelling ? `${e.dwelling} : ` : ""}${parts.join(", ") || "retour"}`
+  const where = [unit, e.dwelling].filter((p): p is string => typeof p === "string" && p !== "").join(", ")
+  return `${where ? `${where} : ` : ""}${parts.join(", ") || "retour"}`
 }
 
 interface FeedbackFormProps {
   addressId: string
+  /** Dwellings to choose from. */
+  units: FieldUnit[]
+  /** Dwelling chosen before opening the form: a unit id, NEW_UNIT, or none. */
+  presetUnit?: string
   /** Feedback being corrected: the form starts from it and keeps its id and visit date. */
   initial?: FeedbackEntry
   onSubmit: (entry: FeedbackEntry) => void
   onCancel?: () => void
 }
 
-function FeedbackForm({ addressId, initial, onSubmit, onCancel }: FeedbackFormProps) {
+function FeedbackForm({ addressId, units, presetUnit, initial, onSubmit, onCancel }: FeedbackFormProps) {
   const [contact, setContact] = useState<Contact | null>(initial?.contact ?? null)
   const [quality, setQuality] = useState<Quality | null>(initial?.contactQuality ?? null)
   const [toAccompany, setToAccompany] = useState(initial?.toAccompany ?? false)
@@ -112,14 +149,24 @@ function FeedbackForm({ addressId, initial, onSubmit, onCancel }: FeedbackFormPr
   const [qualification, setQualification] = useState<Qualification | null>(initial?.qualification ?? null)
   const [scope, setScope] = useState<Scope>(initial?.qualificationScope ?? "logement")
   const [dwelling, setDwelling] = useState(initial?.dwelling ?? "")
+  const [unitChoice, setUnitChoice] = useState<string>(initial?.dwellingUnitId ?? presetUnit ?? NO_UNIT)
+  const [newLabel, setNewLabel] = useState("")
+  const [nonRegistered, setNonRegistered] = useState(initial?.nonRegistered ?? false)
+  // A correction moves a feedback to another known dwelling, it never creates one.
+  const canAddUnit = initial === undefined
   const [remarks, setRemarks] = useState(initial?.remarks ?? "")
-  const ready = contact !== null || qualification !== null
+  const ready = (contact !== null || qualification !== null) && (unitChoice !== NEW_UNIT || newLabel.trim() !== "")
 
   function submit() {
+    const isNew = unitChoice === NEW_UNIT
+    const unitId = isNew ? crypto.randomUUID() : unitChoice === NO_UNIT ? null : unitChoice
     onSubmit({
       id: initial?.id ?? crypto.randomUUID(),
       addressId,
       dwelling: dwelling.trim() === "" ? null : dwelling.trim(),
+      dwellingUnitId: unitId,
+      dwellingUnitLabel: isNew ? newLabel.trim().slice(0, 60) : (initial?.dwellingUnitLabel ?? null),
+      nonRegistered,
       contact,
       contactQuality: contact === "obtenu" ? quality : null,
       toAccompany,
@@ -141,11 +188,40 @@ function FeedbackForm({ addressId, initial, onSubmit, onCancel }: FeedbackFormPr
       }}
     >
       <label className="block space-y-1">
-        <span className="text-sm font-semibold text-slate-700">Logement (facultatif)</span>
+        <span className="text-sm font-semibold text-slate-700">Logement</span>
+        <select
+          value={unitChoice}
+          onChange={(e) => setUnitChoice(e.currentTarget.value)}
+          className="min-h-12 w-full rounded-lg border-2 border-slate-400 bg-white px-3 text-base"
+        >
+          <option value={NO_UNIT}>Toute l'adresse, sans logement précis</option>
+          {units.map((u) => (
+            <option key={u.id} value={u.id}>
+              {u.label}
+            </option>
+          ))}
+          {canAddUnit && <option value={NEW_UNIT}>Autre logement, à ajouter…</option>}
+        </select>
+      </label>
+      {unitChoice === NEW_UNIT && (
+        <label className="block space-y-1">
+          <span className="text-sm font-semibold text-slate-700">Nouveau logement</span>
+          <input
+            value={newLabel}
+            onChange={(e) => setNewLabel(e.currentTarget.value)}
+            placeholder="Bâtiment, étage, porte (jamais de nom)"
+            maxLength={60}
+            autoFocus
+            className="min-h-12 w-full rounded-lg border-2 border-slate-400 bg-white px-3 text-base"
+          />
+        </label>
+      )}
+      <label className="block space-y-1">
+        <span className="text-sm font-semibold text-slate-700">Précision (facultatif)</span>
         <input
           value={dwelling}
           onChange={(e) => setDwelling(e.currentTarget.value)}
-          placeholder="Appartement, étage, nom sur la boîte"
+          placeholder="Nom sur la boîte, repère"
           maxLength={200}
           className="min-h-12 w-full rounded-lg border-2 border-slate-400 bg-white px-3 text-base"
         />
@@ -160,6 +236,9 @@ function FeedbackForm({ addressId, initial, onSubmit, onCancel }: FeedbackFormPr
           </Choice>
           <Choice pressed={toRevisit} onClick={() => setToRevisit(!toRevisit)}>
             À revenir
+          </Choice>
+          <Choice pressed={nonRegistered} onClick={() => setNonRegistered(!nonRegistered)}>
+            Foyer non inscrit sur les listes
           </Choice>
         </div>
       </fieldset>
@@ -187,13 +266,71 @@ function FeedbackForm({ addressId, initial, onSubmit, onCancel }: FeedbackFormPr
           </Button>
         )}
       </div>
-      {!ready && <p className="text-sm text-slate-600">Choisissez au moins le contact ou une qualification.</p>}
+      {!ready && (
+        <p className="text-sm text-slate-600">
+          {unitChoice === NEW_UNIT && newLabel.trim() === ""
+            ? "Indiquez le nouveau logement (bâtiment, étage, porte)."
+            : "Choisissez au moins le contact ou une qualification."}
+        </p>
+      )}
     </form>
   )
 }
 
 function voterName(v: FieldDoor["voters"][number]): string {
   return [v.usageName ?? v.birthName, v.firstNames].filter((p): p is string => typeof p === "string" && p !== "").join(" ")
+}
+
+/** Dwellings of a building: what each has had, a feedback from one tap, and a new dwelling met on the spot. */
+function UnitsPanel({
+  units,
+  total,
+  entered,
+  canEnter,
+  onOpen,
+}: {
+  units: FieldUnit[]
+  total: number
+  entered: FeedbackEntry[]
+  canEnter: boolean
+  onOpen: (unit: string) => void
+}) {
+  const outcomes = units.map((u) => ({ unit: u, ...unitOutcome(u, entered) }))
+  const visited = outcomes.filter((o) => o.state !== "jamais").length
+  return (
+    <section aria-label="Logements" className="space-y-2 rounded-lg border border-slate-300 p-3" data-testid="field-units">
+      <h3 className="text-base font-semibold" data-testid="field-units-progress">
+        Logements : {visited} visité{visited > 1 ? "s" : ""} sur {total}
+      </h3>
+      {units.length > 0 && (
+        <ul className="space-y-1">
+          {outcomes.map(({ unit, state, text }) => (
+            <li key={unit.id} className="flex items-center gap-2 text-sm">
+              <span
+                aria-hidden="true"
+                className={cn("size-2.5 shrink-0 rounded-full", { fait: "bg-emerald-700", a_revoir: "bg-amber-600", jamais: "bg-slate-400" }[state])}
+              />
+              <span className="min-w-0 flex-1">
+                <span className="font-semibold">{unit.label}</span>
+                <span className="block text-slate-700">{text}</span>
+              </span>
+              {canEnter && (
+                <Button type="button" variant="outline" className="min-h-11 shrink-0" onClick={() => onOpen(unit.id)}>
+                  Retour
+                </Button>
+              )}
+            </li>
+          ))}
+        </ul>
+      )}
+      {canEnter && (
+        <Button type="button" variant="outline" className="min-h-12 w-full gap-2 text-base" onClick={() => onOpen(NEW_UNIT)}>
+          <Plus className="size-5" />
+          Ajouter un logement
+        </Button>
+      )}
+    </section>
+  )
 }
 
 export interface FieldDoorCardProps {
@@ -217,8 +354,16 @@ export function FieldDoorCard({ door, index, entered, queueState, canEnter, onSu
   const [formOpen, setFormOpen] = useState(false)
   const [editing, setEditing] = useState<string | null>(null)
   const [confirming, setConfirming] = useState<string | null>(null)
+  const [presetUnit, setPresetUnit] = useState<string | undefined>(undefined)
   const editedEntry = entered.find((e) => e.id === editing)
-  const showForm = canEnter && !editedEntry && (formOpen || entered.length === 0)
+  const units = knownUnits(door, entered)
+  // A building lists its dwellings: the form opens from one of them, or from "Ajouter un logement".
+  const building = units.length > 0 || (door.dwellings ?? 0) > 1
+  const showForm = canEnter && !editedEntry && (formOpen || (entered.length === 0 && !building))
+  const openFor = (unit: string | undefined) => {
+    setPresetUnit(unit)
+    setFormOpen(true)
+  }
 
   return (
     <article
@@ -273,6 +418,16 @@ export function FieldDoorCard({ door, index, entered, queueState, canEnter, onSu
         </details>
       )}
 
+      {building && (
+        <UnitsPanel
+          units={units}
+          total={Math.max(door.dwellings ?? 0, units.length)}
+          entered={entered}
+          canEnter={canEnter && !showForm && !editedEntry}
+          onOpen={openFor}
+        />
+      )}
+
       {entered.length > 0 && (
         <ul className="space-y-1" aria-label="Retours saisis">
           {entered.map((e) => {
@@ -281,7 +436,7 @@ export function FieldDoorCard({ door, index, entered, queueState, canEnter, onSu
             return (
               <li key={e.id} className="space-y-2 rounded-md bg-muted px-3 py-2 text-sm" data-testid="field-entered">
                 <div className="flex flex-wrap justify-between gap-2">
-                  <span>{feedbackSummary(e)}</span>
+                  <span>{feedbackSummary(e, units)}</span>
                   <span className={cn("font-semibold", QUEUE_STATUS[status].className)}>{QUEUE_STATUS[status].label}</span>
                 </div>
                 {changeable &&
@@ -325,6 +480,7 @@ export function FieldDoorCard({ door, index, entered, queueState, canEnter, onSu
         <FeedbackForm
           key={`edit:${editedEntry.id}`}
           addressId={door.addressId}
+          units={units}
           initial={editedEntry}
           onSubmit={(entry) => {
             onCorrect(entry)
@@ -336,20 +492,23 @@ export function FieldDoorCard({ door, index, entered, queueState, canEnter, onSu
 
       {showForm ? (
         <FeedbackForm
-          key={entered.length}
+          key={`${entered.length}:${presetUnit ?? ""}`}
           addressId={door.addressId}
+          units={units}
+          presetUnit={presetUnit}
           onSubmit={(entry) => {
             onSubmit(entry)
             setFormOpen(false)
+            setPresetUnit(undefined)
           }}
-          onCancel={entered.length > 0 ? () => setFormOpen(false) : undefined}
+          onCancel={entered.length > 0 || building ? () => setFormOpen(false) : undefined}
         />
       ) : (
         canEnter &&
         !editedEntry && (
-          <Button type="button" variant="outline" className="min-h-12 w-full gap-2 text-base" onClick={() => setFormOpen(true)}>
+          <Button type="button" variant="outline" className="min-h-12 w-full gap-2 text-base" onClick={() => openFor(undefined)}>
             <Plus className="size-5" />
-            Ajouter un retour
+            {building ? "Retour sans logement précis" : "Ajouter un retour"}
           </Button>
         )
       )}

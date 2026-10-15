@@ -7,6 +7,8 @@ function visit(overrides: Partial<SheetVisit>): SheetVisit {
     id: crypto.randomUUID(),
     addressId: "a",
     dwelling: null,
+    dwellingUnitId: null,
+    nonRegistered: false,
     visitDate: "2027-02-27",
     recordedAt: 0,
     source: "lien",

@@ -5,7 +5,7 @@ import { Input } from "@/components/ui/input"
 import { cn } from "@/lib/utils"
 import { CONTACTS, QUALIFICATIONS, QUALITIES, SCOPES, type Option } from "@/lib/feedback-options"
 import { createDebouncedSaver, type DebouncedSaver } from "@/hooks/use-debounced-save"
-import { deleteVisit, updateVisit } from "@/lib/carte-api"
+import { deleteVisit, updateVisit, type SheetUnit } from "@/lib/carte-api"
 import { reenterSheet, type ItinerarySheet, type ItineraryVisits } from "@/lib/itineraires-api"
 import { formatDate } from "@/lib/utils"
 import {
@@ -226,6 +226,7 @@ export function PaperEntryGrid({ itineraryId, sheet, existing, visitDate, onFirs
                 <PaperRow
                   key={r.id}
                   row={r}
+                  units={door.units}
                   onChange={(patch) => update(r.id, patch)}
                   onRetry={() => void save(r)}
                   onDelete={() => void remove(r)}
@@ -244,11 +245,13 @@ export function PaperEntryGrid({ itineraryId, sheet, existing, visitDate, onFirs
 
 function PaperRow({
   row,
+  units,
   onChange,
   onRetry,
   onDelete,
 }: {
   row: Row
+  units: SheetUnit[]
   onChange: (patch: Partial<Row>) => void
   onRetry: () => void
   onDelete: () => void
@@ -282,6 +285,9 @@ function PaperRow({
           <Toggle pressed={row.toRevisit} disabled={busy} onClick={() => onChange({ toRevisit: !row.toRevisit })}>
             À revenir
           </Toggle>
+          <Toggle pressed={row.nonRegistered} disabled={busy} onClick={() => onChange({ nonRegistered: !row.nonRegistered })}>
+            Foyer non inscrit
+          </Toggle>
         </div>
         <Choices
           label="Qualification de l'adresse"
@@ -294,6 +300,22 @@ function PaperRow({
           <Choices label="Portée" options={SCOPES} value={row.scope} disabled={busy} onChange={(scope) => onChange({ scope: scope ?? "logement" })} />
         )}
       </div>
+      {units.length > 0 && (
+        <select
+          aria-label="Logement de l'immeuble"
+          className="h-9 w-full rounded-md border bg-background px-2 text-sm sm:w-80"
+          value={row.unitId ?? ""}
+          disabled={busy}
+          onChange={(e) => onChange({ unitId: e.currentTarget.value === "" ? null : e.currentTarget.value })}
+        >
+          <option value="">Toute l'adresse, sans logement précis</option>
+          {units.map((u) => (
+            <option key={u.id} value={u.id}>
+              {u.label}
+            </option>
+          ))}
+        </select>
+      )}
       <div className="grid gap-2 sm:grid-cols-[14rem_1fr]">
         <Input
           aria-label="Logement"

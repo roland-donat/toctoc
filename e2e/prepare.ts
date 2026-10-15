@@ -22,6 +22,9 @@ const FIXTURES = resolve(import.meta.dirname, "../tests/fixtures")
 /** Fictional field token of the e2e itinerary, read by e2e/terrain.spec.ts; only its hash goes in the database. */
 export const E2E_FIELD_TOKEN_FILE = `${E2E_DIR}/field-token.txt`
 const E2E_FIELD_TOKEN = "e2e-jeton-terrain-fictif-0123456789abcdefABCDEF"
+/** Link of a second fictional itinerary: the fixture building only, whose dwellings come from the list complements. */
+export const E2E_BUILDING_TOKEN_FILE = `${E2E_DIR}/field-token-immeuble.txt`
+const E2E_BUILDING_TOKEN = "e2e-jeton-immeuble-fictif-0123456789abcdefABCDEF"
 
 /**
  * A fictional itinerary of three fixture doors with an active field link, inserted directly (no routing service in
@@ -59,6 +62,23 @@ function seedFieldLink(db: Db, now: number): void {
       .run(),
   )
   writeFileSync(E2E_FIELD_TOKEN_FILE, E2E_FIELD_TOKEN)
+
+  const building = db
+    .select({ id: registrations.addressId })
+    .from(registrations)
+    .where(and(eq(registrations.importId, importId), eq(registrations.rawComplement1, "Appartement 1")))
+    .get()
+  if (!building?.id) throw new Error("fixture building not found")
+  db.insert(itineraries)
+    .values({ id: "e2e-immeuble", createdAt: now, name: null, zone: JSON.stringify({ type: "bureau", bureau: "0001" }), startLat, startLon, durationMinutes: 30, totalSeconds: 600 })
+    .run()
+  db.insert(itineraryDoors)
+    .values({ itineraryId: "e2e-immeuble", addressId: building.id, position: 0, serviceSeconds: 300, walkSecondsFromPrevious: 60, priority: 10, manual: false })
+    .run()
+  db.insert(fieldLinks)
+    .values({ id: "e2e-lien-immeuble", itineraryId: "e2e-immeuble", tokenHash: sha256Hex(E2E_BUILDING_TOKEN), issuedAt: now, expiresAt: now + FIELD_LINK_VALIDITY_MS, revokedAt: null })
+    .run()
+  writeFileSync(E2E_BUILDING_TOKEN_FILE, E2E_BUILDING_TOKEN)
 }
 
 /** The Géoplateforme is never called by the e2e run: unmatched addresses go to the manual queue. */

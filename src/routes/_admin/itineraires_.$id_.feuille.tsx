@@ -11,6 +11,7 @@ import "@/styles/print.css"
 import { ApiError } from "@/lib/api-client"
 import { CONTACT_LABELS, CONTACTS, QUALIFICATION_LABELS, QUALIFICATIONS, QUALITIES, type Option } from "@/lib/feedback-options"
 import { parisLongDateFormat } from "@/lib/format"
+import { formatDate } from "@/lib/utils"
 import {
   fetchItinerarySheet,
   formatDuration,
@@ -44,7 +45,12 @@ const BAND_LABELS: Record<SheetCheatsheetGroup["ageBand"], string> = {
 const labels = (options: Option<string>[]): string[] => options.map((o) => o.label)
 
 /** The R18 fields, as boxes to tick on paper. */
-const BOX_GROUPS: string[][] = [labels(CONTACTS), labels(QUALITIES), ["À accompagner", "À revenir"], labels(QUALIFICATIONS)]
+const BOX_GROUPS: string[][] = [
+  labels(CONTACTS),
+  labels(QUALITIES),
+  ["À accompagner", "À revenir", "Foyer non inscrit"],
+  labels(QUALIFICATIONS),
+]
 
 function numberIcon(n: number): L.DivIcon {
   return L.divIcon({
@@ -115,6 +121,12 @@ function passageText(p: SheetPassage | null): string {
   return parts.length > 0 ? `${date} : ${parts.join(", ")}` : date
 }
 
+/** Short state of a dwelling on paper: date and outcome of its latest feedback. */
+function unitPassage(v: NonNullable<SheetDoor["units"][number]["lastVisit"]>): string {
+  const outcome = v.contact === "obtenu" ? "contact" : v.contact === "absent" ? "absent" : "qualifié"
+  return `${formatDate(v.visitDate)}, ${outcome}${v.toRevisit ? ", à revenir" : ""}`
+}
+
 function DoorRow({ door, namesShown }: { door: SheetDoor; namesShown: boolean }) {
   const names = namesShown ? door.voters.map(voterName).filter((n) => n !== "") : []
   return (
@@ -145,6 +157,17 @@ function DoorRow({ door, namesShown }: { door: SheetDoor; namesShown: boolean })
             </span>
           ))}
         </div>
+        {door.units.length > 0 && (
+          <div className="units" data-testid="sheet-units">
+            {door.units.map((u) => (
+              <span key={u.id} className="choice">
+                <span className="box" aria-hidden="true" />
+                {u.label}
+                {u.lastVisit && <span className="small"> ({unitPassage(u.lastVisit)})</span>}
+              </span>
+            ))}
+          </div>
+        )}
         <div className="write-lines">
           <span className="write-line dwelling">Logement :</span>
           <span className="write-line">Remarques :</span>

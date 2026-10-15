@@ -98,6 +98,16 @@
   flex-shrink: 0;
 }
 
+/* Dwellings of a building, one box each, before the free lines. */
+.print-sheet .units {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.15rem 0.9rem;
+  margin-top: 0.35rem;
+  padding-top: 0.25rem;
+  border-top: 1px dotted #000;
+}
+
 .print-sheet .write-lines {
   display: flex;
   gap: 2mm;

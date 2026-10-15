@@ -59,6 +59,8 @@ export const registrations = sqliteTable(
     rawComplement2: text("raw_complement2"),
     rawLieuDit: text("raw_lieu_dit"),
     rawPostalCode: text("raw_postal_code"),
+    /** Dwelling read from the address complements of the list (building, floor, apartment), when there is one. */
+    dwellingUnitId: text("dwelling_unit_id"),
   },
   (t) => [
     uniqueIndex("registrations_import_elector_list_idx").on(t.importId, t.electorId, t.listType),

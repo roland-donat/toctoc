@@ -13,7 +13,7 @@ import { join } from "node:path"
 import { count } from "drizzle-orm"
 import type Database from "better-sqlite3"
 import type { AppContext } from "../context.ts"
-import { electors, importExceptions, registrations, visits, voteHistory } from "../db/schema/index.ts"
+import { dwellingUnits, electors, importExceptions, registrations, visits, voteHistory } from "../db/schema/index.ts"
 import { setSetting } from "../db/settings.ts"
 import { campaignActivity, campaignCoverage, computeStats, type CampaignActivity, type CampaignCoverage, type StatsReport } from "../domain/stats.ts"
 import { logInfo } from "../lib/log.ts"
@@ -146,7 +146,9 @@ export async function runPurge(
     tx.delete(voteHistory).run()
     tx.delete(registrations).run()
     tx.delete(electors).run()
-    tx.update(visits).set({ dwelling: null, remarks: null }).run()
+    tx.update(visits).set({ dwelling: null, remarks: null, dwellingUnitId: null }).run()
+    // Unit labels are meant to carry no name, but a volunteer may have typed one: they go with the rest.
+    tx.delete(dwellingUnits).run()
     return before
   })
 

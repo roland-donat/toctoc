@@ -3,6 +3,7 @@
 import { and, eq, ne } from "drizzle-orm"
 import { Hono } from "hono"
 import { z } from "zod"
+import type { UnitView } from "../services/dwelling-units.ts"
 import type { AppContext } from "../context.ts"
 import { readJson } from "../lib/http.ts"
 import type { AgeBand } from "../db/schema/cheatsheets.ts"
@@ -79,6 +80,8 @@ export interface SheetDoor {
   /** Age bands of the targeted voters (hors cible excluded). */
   ageBands: AgeBand[]
   lastPassage: SheetPassage | null
+  /** Dwellings of the building, printed as lines to tick (15/10/2026). */
+  units: UnitView[]
   /** Empty unless names are allowed for this itinerary at print time (KTD7). */
   voters: SheetVoter[]
 }
@@ -137,6 +140,7 @@ function buildSheet(ctx: AppContext, id: string): ItinerarySheet | null {
       dwellings: d.dwellings,
       ageBands: d.ageBands,
       lastPassage: d.lastPassage,
+      units: d.units,
       voters: d.voters,
     })),
     cheatsheetGroups: groups,

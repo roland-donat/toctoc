@@ -2,6 +2,7 @@
 // account. Every request is scoped to the itinerary of the token (KTD6) and anonymized at each request (KTD7).
 import { and, eq } from "drizzle-orm"
 import { Hono, type Context } from "hono"
+import type { UnitView } from "../services/dwelling-units.ts"
 import type { AppContext } from "../context.ts"
 import { readJson } from "../lib/http.ts"
 import type { AgeBand } from "../db/schema/cheatsheets.ts"
@@ -28,6 +29,8 @@ export interface FieldDoor {
   ageBands: AgeBand[]
   cheatsheets: FieldCheatsheet[]
   lastPassage: FieldPassage | null
+  /** Dwellings of the building with their latest feedback; labels carry no name. */
+  units: UnitView[]
   /** A feedback was recorded on this door since the link was issued, from any phone. */
   done: boolean
   /** Empty unless names are allowed for this link. */
@@ -92,6 +95,7 @@ function buildLoop(ctx: AppContext, link: FieldLink): FieldLoop | null {
             toAccompany: d.lastPassage.toAccompany,
           }
         : null,
+      units: d.units,
       done: d.lastRecordedAt !== null && d.lastRecordedAt >= link.issuedAt,
       voters: d.voters,
     })),
@@ -151,7 +155,7 @@ export function terrainRoutes(ctx: AppContext): Hono {
     const visit = ownVisit(ctx, resolved.link, c.req.param("id"))
     if (!visit) return notFound(c)
     try {
-      updateVisit(ctx, visit.id, parsed.data)
+      updateVisit(ctx, visit.id, parsed.data, { fromField: true })
       return c.json({ id: visit.id })
     } catch (err) {
       if (err instanceof VisitError) return err.code === "empty_feedback" ? c.json({ error: err.code }, 422) : notFound(c)

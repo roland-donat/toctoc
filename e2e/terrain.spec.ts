@@ -20,7 +20,7 @@ test("the field link works on a phone without a session, and the token never app
   await expect(page.getByRole("button", { name: "Se déconnecter" })).toHaveCount(0)
 
   const first = page.getByTestId("field-door").first()
-  await first.getByPlaceholder("Appartement, étage, nom sur la boîte").fill("apt 2")
+  await first.getByPlaceholder("Nom sur la boîte, repère").fill("apt 2")
   await first.getByRole("button", { name: "Absent", exact: true }).click()
   await first.getByRole("button", { name: "À revenir" }).click()
   await first.getByRole("button", { name: "Envoyer le retour" }).click()

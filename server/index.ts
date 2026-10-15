@@ -4,6 +4,7 @@ import { createApp } from "./app.ts"
 import { openDatabase } from "./db/index.ts"
 import { ConfigError, loadConfig, REPO_ROOT } from "./lib/config.ts"
 import { logInfo } from "./lib/log.ts"
+import { syncListUnits } from "./services/dwelling-units.ts"
 
 function main() {
   let config
@@ -17,6 +18,8 @@ function main() {
     throw err
   }
   const { db } = openDatabase(resolve(config.dataDir, "toctoc.db"))
+  // Dwellings of the list in force, for a base imported before they existed; idempotent.
+  syncListUnits({ db, config, now: () => new Date() })
   const app = createApp(
     { db, config, now: () => new Date() },
     { distDir: process.env.NODE_ENV === "production" ? resolve(REPO_ROOT, "dist") : undefined },

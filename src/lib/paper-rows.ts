@@ -21,6 +21,9 @@ export interface PaperRowState {
   qualification: Qualification | null
   scope: Scope
   dwelling: string
+  /** Dwelling of the building ticked on the sheet, null for the address as a whole. */
+  unitId: string | null
+  nonRegistered: boolean
   remarks: string
   /** Fields as last stored on the server; null until the first save. Later edits are sent as corrections. */
   stored: PaperFeedback | null
@@ -47,6 +50,8 @@ export function newRow(addressId: string): PaperRowState {
     qualification: null,
     scope: "logement",
     dwelling: "",
+    unitId: null,
+    nonRegistered: false,
     remarks: "",
     stored: null,
     origin: null,
@@ -73,6 +78,8 @@ export function toFeedback(r: PaperRowState): PaperFeedback {
     id: r.id,
     addressId: r.addressId,
     dwelling: r.dwelling.trim() === "" ? null : r.dwelling.trim(),
+    dwellingUnitId: r.unitId,
+    nonRegistered: r.nonRegistered,
     contact: r.contact,
     contactQuality: r.contact === "obtenu" ? r.quality : null,
     toAccompany: r.toAccompany,
@@ -85,6 +92,8 @@ export function toFeedback(r: PaperRowState): PaperFeedback {
 
 const PATCH_FIELDS = [
   "dwelling",
+  "dwellingUnitId",
+  "nonRegistered",
   "contact",
   "contactQuality",
   "toAccompany",
@@ -117,6 +126,8 @@ export function rowFromVisit(v: SheetVisit, namesShown: boolean): PaperRowState 
     qualification,
     scope: v.qualificationScope ?? "logement",
     dwelling: v.dwelling ?? "",
+    unitId: v.dwellingUnitId,
+    nonRegistered: v.nonRegistered,
     remarks: v.remarks ?? "",
     origin: { source: v.source, visitDate: v.visitDate, correctedAt: v.correctedAt },
     textsMasked: !namesShown,

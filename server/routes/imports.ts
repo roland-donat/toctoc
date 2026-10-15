@@ -27,6 +27,7 @@ import {
   type FetchFn,
 } from "../services/ban-loader.ts"
 import { addressLabel, currentListSummary, currentQueue } from "../services/current-list.ts"
+import { syncListUnits } from "../services/dwelling-units.ts"
 import {
   commitEmargementImport,
   decideRowException,
@@ -181,6 +182,8 @@ export function importRoutes(ctx: AppContext, deps: ImportRoutesDeps = {}): Hono
       .get()
     if (!address) return c.json({ error: "unknown_address" }, 400)
     ctx.db.update(registrations).set({ addressId: address.id, matchStatus: "manual" }).where(eq(registrations.id, id)).run()
+    // The dwelling of its complements, now that the registration has an address.
+    syncListUnits(ctx)
     return c.json({ id, addressId: address.id, matchStatus: "manual" as const })
   })
 

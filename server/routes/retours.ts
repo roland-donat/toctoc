@@ -28,6 +28,9 @@ const ERROR_STATUS = {
   no_active_qualification: 409,
   cancellation_locked: 409,
   empty_feedback: 422,
+  unit_not_found: 404,
+  unit_other_address: 409,
+  unit_label_required: 422,
 } as const
 
 /** Visit feedback of the administrator (R17 to R20, R5 cancellation). Mounted at /api/retours. */

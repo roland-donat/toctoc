@@ -3,6 +3,7 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query"
 import { Link } from "@tanstack/react-router"
 import { Trash2, X } from "lucide-react"
 import { Button } from "@/components/ui/button"
+import { Input } from "@/components/ui/input"
 import { DoorSymbol } from "@/components/door-map"
 import {
   CATEGORY_LABELS,
@@ -16,6 +17,9 @@ import {
   sheetKey,
   updateDwellings,
   type AddressSheet as Sheet,
+  addUnit,
+  updateUnit,
+  type SheetUnit,
   type SheetVisit,
   type SheetVoter,
 } from "@/lib/carte-api"
@@ -92,6 +96,8 @@ function SheetBody({ sheet }: { sheet: Sheet }) {
 
       <DwellingsField key={sheet.id} addressId={sheet.id} initial={sheet.dwellings} />
 
+      <UnitsSection sheet={sheet} />
+
       <section aria-labelledby="sheet-voters" className="space-y-2">
         <h3 id="sheet-voters" className="text-sm font-medium">
           Inscrits ({sheet.voters.length})
@@ -112,7 +118,7 @@ function SheetBody({ sheet }: { sheet: Sheet }) {
         ) : (
           <ol className="space-y-2">
             {sheet.visits.map((v) => (
-              <VisitItem key={v.id} visit={v} addressId={sheet.id} />
+              <VisitItem key={v.id} visit={v} addressId={sheet.id} units={sheet.units} />
             ))}
           </ol>
         )}
@@ -257,7 +263,88 @@ const QUALITY_LABELS: Record<NonNullable<SheetVisit["contactQuality"]>, string> 
   ferme: "fermé",
 }
 
-function VisitItem({ visit: v, addressId }: { visit: SheetVisit; addressId: string }) {
+/** Dwellings of the building: list with their latest feedback, added, renamed or removed by the administrator. */
+function UnitsSection({ sheet }: { sheet: Sheet }) {
+  const queryClient = useQueryClient()
+  const [label, setLabel] = useState("")
+  const [renaming, setRenaming] = useState<{ id: string; label: string } | null>(null)
+  const refresh = () =>
+    queryClient.invalidateQueries({ queryKey: sheetKey(sheet.id) }).then(() => queryClient.invalidateQueries({ queryKey: ["itineraires"] }))
+  const add = useMutation({ mutationFn: (l: string) => addUnit(sheet.id, l), onSuccess: () => refresh().then(() => setLabel("")) })
+  const change = useMutation({
+    mutationFn: ({ id, patch }: { id: string; patch: { label?: string; retired?: boolean } }) => updateUnit(sheet.id, id, patch),
+    onSuccess: () => refresh().then(() => setRenaming(null)),
+  })
+  const visited = sheet.units.filter((u) => u.lastVisit !== null).length
+  const total = Math.max(sheet.dwellings ?? 0, sheet.units.length)
+  return (
+    <section aria-labelledby="sheet-units" className="space-y-2">
+      <h3 id="sheet-units" className="text-sm font-medium">
+        Logements identifiés ({sheet.units.length}){total > 0 && ` : ${visited} visité${visited > 1 ? "s" : ""} sur ${total}`}
+      </h3>
+      {sheet.nonRegisteredMet > 0 && (
+        <p className="text-sm">
+          {sheet.nonRegisteredMet} {sheet.nonRegisteredMet > 1 ? "foyers non inscrits rencontrés" : "foyer non inscrit rencontré"}.
+        </p>
+      )}
+      {sheet.units.length > 0 && (
+        <ul className="space-y-1 text-sm">
+          {sheet.units.map((u) => (
+            <li key={u.id} className="flex flex-wrap items-center gap-2 rounded-md border px-2 py-1">
+              {renaming?.id === u.id ? (
+                <form
+                  className="flex flex-1 gap-2"
+                  onSubmit={(e) => {
+                    e.preventDefault()
+                    if (renaming.label.trim() !== "") change.mutate({ id: u.id, patch: { label: renaming.label } })
+                  }}
+                >
+                  <Input value={renaming.label} maxLength={60} onChange={(e) => setRenaming({ id: u.id, label: e.target.value })} aria-label="Nouveau libellé" />
+                  <Button size="sm" type="submit" disabled={change.isPending}>
+                    Renommer
+                  </Button>
+                </form>
+              ) : (
+                <>
+                  <span className="min-w-0 flex-1">
+                    <span className="font-medium">{u.label}</span>
+                    <span className="text-muted-foreground">
+                      {u.registered > 0 && ` · ${u.registered} inscrit${u.registered > 1 ? "s" : ""}`}
+                      {u.lastVisit
+                        ? ` · ${formatDate(u.lastVisit.visitDate)} : ${u.lastVisit.contact === "obtenu" ? "contact" : u.lastVisit.contact === "absent" ? "absent" : "qualifié"}${u.lastVisit.toRevisit ? ", à revoir" : ""}${u.lastVisit.nonRegistered ? ", non inscrit" : ""}`
+                        : " · jamais visité"}
+                    </span>
+                  </span>
+                  <Button size="xs" variant="ghost" onClick={() => setRenaming({ id: u.id, label: u.label })}>
+                    Renommer
+                  </Button>
+                  <Button size="xs" variant="ghost" disabled={change.isPending} onClick={() => change.mutate({ id: u.id, patch: { retired: true } })}>
+                    Retirer
+                  </Button>
+                </>
+              )}
+            </li>
+          ))}
+        </ul>
+      )}
+      <form
+        className="flex gap-2"
+        onSubmit={(e) => {
+          e.preventDefault()
+          if (label.trim() !== "") add.mutate(label)
+        }}
+      >
+        <Input value={label} maxLength={60} placeholder="Bâtiment, étage, porte (jamais de nom)" onChange={(e) => setLabel(e.target.value)} aria-label="Logement à ajouter" />
+        <Button size="sm" type="submit" variant="outline" disabled={add.isPending || label.trim() === ""}>
+          Ajouter
+        </Button>
+      </form>
+      {(add.isError || change.isError) && <p className="text-sm text-destructive">La modification des logements a échoué.</p>}
+    </section>
+  )
+}
+
+function VisitItem({ visit: v, addressId, units }: { visit: SheetVisit; addressId: string; units: SheetUnit[] }) {
   const queryClient = useQueryClient()
   const [confirming, setConfirming] = useState(false)
   const remove = useMutation({
@@ -270,6 +357,7 @@ function VisitItem({ visit: v, addressId }: { visit: SheetVisit; addressId: stri
   if (v.contact === "absent") facts.push("absent")
   if (v.toRevisit) facts.push("à revoir")
   if (v.toAccompany) facts.push("à accompagner")
+  if (v.nonRegistered) facts.push("foyer non inscrit")
   if (v.qualification) {
     const scope = v.qualification !== "annulation" && v.qualificationScope === "logement" ? " (un logement)" : ""
     facts.push(`${QUALIFICATION_LABELS[v.qualification]}${scope}`)
@@ -285,7 +373,11 @@ function VisitItem({ visit: v, addressId }: { visit: SheetVisit; addressId: stri
           {v.correctedAt !== null && ", corrigé"}
         </span>
       </p>
-      {v.dwelling && <p className="text-muted-foreground">{v.dwelling}</p>}
+      {(v.dwellingUnitId || v.dwelling) && (
+        <p className="text-muted-foreground">
+          {[units.find((u) => u.id === v.dwellingUnitId)?.label, v.dwelling].filter(Boolean).join(", ")}
+        </p>
+      )}
       {facts.length > 0 && <p>{facts.join(", ")}</p>}
       {v.remarks && <p className="mt-1 whitespace-pre-line text-muted-foreground">{v.remarks}</p>}
       {editable && (

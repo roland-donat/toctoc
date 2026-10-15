@@ -98,6 +98,8 @@ export interface SheetVisit {
   addressId: string
   /** Null when names are masked: free text that may carry a name. */
   dwelling: string | null
+  dwellingUnitId: string | null
+  nonRegistered: boolean
   visitDate: string
   recordedAt: number
   source: "lien" | "feuille" | "admin"
@@ -125,8 +127,28 @@ export interface AddressSheet {
   commerce: { kinds: string[]; dismissed: boolean } | null
   exclusion: Exclude<Qualification, "annulation"> | null
   voters: SheetVoter[]
+  /** Dwellings of the building with their latest feedback. */
+  units: SheetUnit[]
+  /** Households met that are not on the electoral list. */
+  nonRegisteredMet: number
   visits: SheetVisit[]
 }
+
+export interface SheetUnit {
+  id: string
+  label: string
+  registered: number
+  lastVisit: { visitDate: string; contact: "obtenu" | "absent" | null; toRevisit: boolean; nonRegistered: boolean } | null
+}
+
+export const addUnit = (addressId: string, label: string) =>
+  fetchJSON<{ id: string }>(`/adresses/${encodeURIComponent(addressId)}/logements`, { method: "POST", body: JSON.stringify({ label }) })
+
+export const updateUnit = (addressId: string, unitId: string, patch: { label?: string; retired?: boolean }) =>
+  fetchJSON<{ id: string }>(`/adresses/${encodeURIComponent(addressId)}/logements/${encodeURIComponent(unitId)}`, {
+    method: "PATCH",
+    body: JSON.stringify(patch),
+  })
 
 export type AnonymizationMode = "anonyme" | "nominatif"
 
@@ -222,7 +244,10 @@ export const cancelQualification = (addressId: string) =>
 
 /** Correction of a feedback: only the fields sent change (texts hidden in anonymous mode are left out). */
 export type VisitPatch = Partial<
-  Pick<SheetVisit, "dwelling" | "contact" | "contactQuality" | "toAccompany" | "toRevisit" | "qualificationScope" | "remarks"> & {
+  Pick<
+    SheetVisit,
+    "dwelling" | "dwellingUnitId" | "nonRegistered" | "contact" | "contactQuality" | "toAccompany" | "toRevisit" | "qualificationScope" | "remarks"
+  > & {
     qualification: FieldQualification | null
   }
 >

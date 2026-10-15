@@ -6,6 +6,8 @@ import type { AppContext } from "../context.ts"
 import type { Db } from "../db/index.ts"
 import { addresses, visits } from "../db/schema/index.ts"
 import { activeExclusion, parisDate } from "../domain/qualification.ts"
+import { UNIT_LABEL_MAX } from "../domain/dwelling-units.ts"
+import { resolveUnit, UnitError } from "./dwelling-units.ts"
 
 export type Visit = typeof visits.$inferSelect
 
@@ -17,6 +19,10 @@ export type VisitErrorCode =
   | "cancellation_locked"
   /** A corrected feedback still needs the contact or the qualification, as on entry. */
   | "empty_feedback"
+  /** The dwelling named is unknown, belongs to another address, or a new one has no label. */
+  | "unit_not_found"
+  | "unit_other_address"
+  | "unit_label_required"
 
 export class VisitError extends Error {
   readonly code: VisitErrorCode
@@ -53,6 +59,11 @@ export const visitInputSchema = z.object({
   visitDate: isoDateSchema.optional(),
   itineraryId: z.string().max(100).nullish(),
   dwelling: optionalText(200),
+  /** Dwelling of the building (15/10/2026): an existing unit of the address, or a new one with its label. */
+  dwellingUnitId: z.string().min(1).max(100).nullish(),
+  dwellingUnitLabel: z.string().max(UNIT_LABEL_MAX).nullish(),
+  /** The household met is not on the electoral list. */
+  nonRegistered: z.boolean().default(false),
   contact: z.enum(["obtenu", "absent"]).nullish(),
   contactQuality: z.enum(["chaleureux", "poli", "ferme"]).nullish(),
   toAccompany: z.boolean().default(false),
@@ -85,6 +96,16 @@ function insertOnce(ctx: AppContext, row: VisitRow): RecordVisitResult {
   return { visit: existing, created: false }
 }
 
+/** A unit error of a feedback is a feedback error for the routes, with its own code. */
+function unitOrVisitError<T>(fn: () => T): T {
+  try {
+    return fn()
+  } catch (err) {
+    if (err instanceof UnitError) throw new VisitError(err.code)
+    throw err
+  }
+}
+
 function assertAddress(db: Db, addressId: string): void {
   const found = db.select({ id: addresses.id }).from(addresses).where(eq(addresses.id, addressId)).get()
   if (!found) throw new VisitError("address_not_found")
@@ -97,10 +118,21 @@ export function recordVisit(ctx: AppContext, input: VisitInput): RecordVisitResu
   if (existing) return { visit: existing, created: false }
   assertAddress(ctx.db, v.addressId)
   const now = ctx.now()
+  const dwellingUnitId = unitOrVisitError(() => {
+    try {
+      return resolveUnit(ctx, v.addressId, v.dwellingUnitId, v.dwellingUnitLabel, v.source === "lien" ? "terrain" : "admin")
+    } catch (err) {
+      // A feedback queued on a phone is never lost over its dwelling: it is kept for the building.
+      if (err instanceof UnitError && v.source === "lien") return null
+      throw err
+    }
+  })
   return insertOnce(ctx, {
     id: v.id,
     addressId: v.addressId,
     dwelling: v.dwelling,
+    dwellingUnitId,
+    nonRegistered: v.nonRegistered,
     visitDate: v.visitDate ?? parisDate(now),
     recordedAt: now.getTime(),
     source: v.source,
@@ -169,6 +201,9 @@ const patchText = (max: number) =>
 export const visitPatchSchema = z
   .object({
     dwelling: patchText(200),
+    /** Another unit of the same address, or none; a correction never creates a unit. */
+    dwellingUnitId: z.string().max(100).nullable().optional(),
+    nonRegistered: z.boolean().optional(),
     contact: z.enum(["obtenu", "absent"]).nullable().optional(),
     contactQuality: z.enum(["chaleureux", "poli", "ferme"]).nullable().optional(),
     toAccompany: z.boolean().optional(),
@@ -189,16 +224,32 @@ function editableVisit(db: Db, id: string): Visit {
 }
 
 /** Corrects a feedback in place and dates the correction (callers check who may correct it); the visit date, source and itinerary stay. */
-export function updateVisit(ctx: AppContext, id: string, input: VisitPatch): Visit {
+/**
+ * `fromField`: a correction queued on a phone keeps the previous dwelling rather than being refused when the one
+ * it names is unknown to the server (merged with another label meanwhile).
+ */
+export function updateVisit(ctx: AppContext, id: string, input: VisitPatch, options: { fromField?: boolean } = {}): Visit {
   const patch = visitPatchSchema.parse(input)
   const visit = editableVisit(ctx.db, id)
   const defined = Object.fromEntries(Object.entries(patch).filter(([, v]) => v !== undefined)) as Partial<Visit>
   const merged = { ...visit, ...defined }
   if (merged.contact === null && merged.qualification === null) throw new VisitError("empty_feedback")
+  if (patch.dwellingUnitId) {
+    const unitId = patch.dwellingUnitId
+    try {
+      resolveUnit(ctx, visit.addressId, unitId, null, "admin")
+    } catch (err) {
+      if (!(err instanceof UnitError)) throw err
+      if (!options.fromField) throw new VisitError(err.code)
+      merged.dwellingUnitId = visit.dwellingUnitId
+    }
+  }
   const updated = ctx.db
     .update(visits)
     .set({
       dwelling: merged.dwelling,
+      dwellingUnitId: merged.dwellingUnitId,
+      nonRegistered: merged.nonRegistered,
       contact: merged.contact,
       // Same coherence as on entry: a quality only with a contact, a scope only with a qualification.
       contactQuality: merged.contact === "obtenu" ? merged.contactQuality : null,

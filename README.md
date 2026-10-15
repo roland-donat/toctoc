@@ -8,6 +8,7 @@ Application de porte-à-porte militant.
 - Lien terrain : chaque tournée a un lien privé à ouvrir sur téléphone, sans compte. Le militant y saisit ses retours porte par porte, y compris sans réseau. L'écran peut s'installer sur l'écran d'accueil.
 - Feuille imprimable : la même tournée sur papier, pour les sorties sans téléphone.
 - Suivi : retours datés, corrections, et date de dernier passage à chaque adresse.
+- Immeubles : chaque adresse garde la liste de ses logements (bâtiment, étage, porte), préremplie par les compléments d'adresse de la liste électorale et complétée sur place. On voit les logements visités sur le total, et les foyers rencontrés qui ne sont pas inscrits.
 
 Le code est sous licence GNU GPL v3 ou ultérieure (voir `LICENSE`).
 
