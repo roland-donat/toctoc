@@ -4,7 +4,7 @@ import { addresses } from "./addresses.ts"
 /** One row per file imported (electoral list or emargement). */
 export const imports = sqliteTable("imports", {
   id: text("id").primaryKey(),
-  kind: text("kind", { enum: ["rep", "emargement", "ban"] }).notNull(),
+  kind: text("kind", { enum: ["rep", "emargement", "ban", "commerces"] }).notNull(),
   importedAt: integer("imported_at").notNull(),
   rowCount: integer("row_count").notNull(),
   /** For `rep`: the list currently in force (latest import). */

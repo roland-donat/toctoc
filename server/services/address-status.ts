@@ -3,7 +3,7 @@
 import { and, eq, inArray, isNotNull, isNull } from "drizzle-orm"
 import type { AppContext } from "../context.ts"
 import { AGE_BANDS, type AgeBand } from "../db/schema/cheatsheets.ts"
-import { addresses, electors, registrations, visits } from "../db/schema/index.ts"
+import { addresses, commerces, electors, registrations, visits } from "../db/schema/index.ts"
 import { ageAt, ageBand } from "../domain/age.ts"
 import { loadParameters, type PriorityParameters } from "../domain/parameters.ts"
 import {
@@ -44,7 +44,13 @@ export function computeAddressStatuses(ctx: AppContext, options: AddressStatusOp
   const today = parisDate(now)
 
   const rows = db
-    .select({ id: addresses.id, kind: addresses.kind, streetKey: addresses.streetKey, dwellings: addresses.dwellings })
+    .select({
+      id: addresses.id,
+      kind: addresses.kind,
+      streetKey: addresses.streetKey,
+      dwellings: addresses.dwellings,
+      commerceDismissedAt: addresses.commerceDismissedAt,
+    })
     .from(addresses)
     .where(ids === undefined ? isNull(addresses.retiredAt) : inArray(addresses.id, [...ids]))
     .all()
@@ -92,6 +98,15 @@ export function computeAddressStatuses(ctx: AppContext, options: AddressStatusOp
     for (const p of proposals) if (p.addressId !== null) proposedForQueue.add(p.addressId)
   }
 
+  const withCommerce = new Set(
+    db
+      .select({ addressId: commerces.addressId })
+      .from(commerces)
+      .where(isNotNull(commerces.addressId))
+      .all()
+      .map((c) => c.addressId),
+  )
+
   const visitsByAddress = new Map<string, VisitFacts[]>()
   const visitRows = db
     .select({
@@ -127,6 +142,7 @@ export function computeAddressStatuses(ctx: AppContext, options: AddressStatusOp
         levels: voters.map((v) => v.level),
         streetLevelElectorsOnStreet: streetLevelStreets.has(a.streetKey),
         proposedForQueuedElector: proposedForQueue.has(a.id),
+        commerce: withCommerce.has(a.id) && a.commerceDismissedAt === null,
       }),
       followUp: followUpState(history, today, params.recentDays),
       lastVisit: latestVisitDate(history),

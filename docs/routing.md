@@ -17,6 +17,8 @@ Le script enchaîne quatre étapes :
 3. Il télécharge une seule fois l'extrait OpenStreetMap de la région chez Geofabrik (quelques centaines de Mo ; Île-de-France pour Clichy-sous-Bois).
 4. Il découpe la zone, puis prépare le réseau OSRM en profil piéton (MLD). Il faut compter moins d'une minute après le téléchargement.
 
+Le même script extrait aussi de l'extrait régional les vitrines de la zone (commerces, cafés, pharmacies, bureaux, hôtels) dans `<dossier>/pois/commerces-osm.json`, que l'écran Imports charge pour repérer les commerces probables. `--pois-only` ne refait que cette extraction.
+
 Si `osmium` n'est pas installé, le script construit une image locale `toctoc-osmium:bookworm` à partir du paquet Debian. Il lui faut aussi `curl`, `node` et Docker.
 
 Pour reprendre une carte à jour : `deploy/osrm/prepare-commune.sh <dossier> <code-insee> --refresh`, puis redémarrer le service `osrm`.

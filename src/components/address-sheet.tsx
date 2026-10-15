@@ -6,6 +6,8 @@ import { Button } from "@/components/ui/button"
 import { DoorSymbol } from "@/components/door-map"
 import {
   CATEGORY_LABELS,
+  commerceLabel,
+  setCommerceDismissed,
   FOLLOW_UP_LABELS,
   QUALIFICATION_LABELS,
   cancelQualification,
@@ -86,6 +88,8 @@ function SheetBody({ sheet }: { sheet: Sheet }) {
         </div>
       )}
 
+      {sheet.commerce && <CommerceNotice sheet={sheet} commerce={sheet.commerce} />}
+
       <DwellingsField key={sheet.id} addressId={sheet.id} initial={sheet.dwellings} />
 
       <section aria-labelledby="sheet-voters" className="space-y-2">
@@ -114,6 +118,34 @@ function SheetBody({ sheet }: { sheet: Sheet }) {
         )}
       </section>
     </>
+  )
+}
+
+/** OpenStreetMap lists a shop front here: say which, and let the administrator say the address is lived in. */
+function CommerceNotice({ sheet, commerce }: { sheet: Sheet; commerce: { kinds: string[]; dismissed: boolean } }) {
+  const queryClient = useQueryClient()
+  const toggle = useMutation({
+    mutationFn: (dismissed: boolean) => setCommerceDismissed(sheet.id, dismissed),
+    onSuccess: () =>
+      queryClient.invalidateQueries({ queryKey: ["carte"] }).then(() => queryClient.invalidateQueries({ queryKey: sheetKey(sheet.id) })),
+  })
+  const kinds = commerce.kinds.map(commerceLabel).join(", ")
+  return (
+    <div className="rounded-md border border-[#a0785a]/40 bg-[#a0785a]/10 p-3 text-sm">
+      {commerce.dismissed ? (
+        <p>OpenStreetMap recense ici : {kinds}. Vous avez indiqué que l'adresse est habitée.</p>
+      ) : sheet.category === "commerce_probable" ? (
+        <p>Commerce probable, hors des itinéraires. OpenStreetMap recense ici : {kinds}. Aucun inscrit n'y habite.</p>
+      ) : (
+        <p>OpenStreetMap recense aussi ici : {kinds}.</p>
+      )}
+      {(commerce.dismissed || sheet.category === "commerce_probable") && (
+        <Button size="sm" variant="outline" className="mt-2" disabled={toggle.isPending} onClick={() => toggle.mutate(!commerce.dismissed)}>
+          {commerce.dismissed ? "Revenir au commerce probable" : "L'adresse est habitée"}
+        </Button>
+      )}
+      {toggle.isError && <p className="mt-1 text-destructive">La modification a échoué.</p>}
+    </div>
   )
 }
 

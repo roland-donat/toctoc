@@ -24,6 +24,11 @@ export const addresses = sqliteTable(
     lon: real("lon").notNull(),
     /** Number of dwellings entered by the administrator (R9), when known. */
     dwellings: integer("dwellings"),
+    /**
+     * Set when the administrator says a "commerce probable" is lived in: the address is "sans inscrit" again
+     * whatever OpenStreetMap lists there.
+     */
+    commerceDismissedAt: integer("commerce_dismissed_at"),
     /** Set when a reload of the BAN no longer lists this address; never deleted (feedback may point to it). */
     retiredAt: integer("retired_at"),
     updatedAt: integer("updated_at").notNull(),

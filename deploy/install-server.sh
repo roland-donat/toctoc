@@ -144,11 +144,24 @@ if ! compgen -G "$STATE/routing/osrm/toctoc.osrm*" >/dev/null; then
   mapfile -t bases < <(find "$STATE/routing/osrm" -maxdepth 1 -name '*.osrm' -printf '%f\n' 2>/dev/null)
   if [[ ${#bases[@]} -eq 1 ]]; then
     old="${bases[0]%.osrm}"
-    for f in "$STATE/routing/osrm/$old".osrm*; do mv "$f" "${f/\/$old.osrm/\/toctoc.osrm}"; done
+    for f in "$STATE/routing/osrm/$old".osrm*; do mv "$f" "$STATE/routing/osrm/toctoc.osrm${f##*/"$old".osrm}"; done
   fi
 fi
 if ! compgen -G "$STATE/routing/osrm/toctoc.osrm*" >/dev/null; then
   "$SRC/deploy/osrm/prepare-commune.sh" "$STATE/routing" "$COMMUNE"
+fi
+# Shop fronts of the commune (commerce probable), from the same OpenStreetMap extract; optional, never blocking.
+if [[ -f "$STAGING/routing/pois/commerces-osm.json" ]]; then
+  install -d -m 755 "$STATE/routing/pois"
+  install -m 644 "$STAGING/routing/pois/commerces-osm.json" "$STATE/routing/pois/commerces-osm.json"
+fi
+if [[ ! -f "$STATE/routing/pois/commerces-osm.json" ]]; then
+  "$SRC/deploy/osrm/prepare-commune.sh" "$STATE/routing" "$COMMUNE" --pois-only \
+    || echo "shop fronts not extracted: the Imports screen accepts the file later" >&2
+fi
+if [[ -f "$STATE/routing/pois/commerces-osm.json" ]]; then
+  install -d -o toctoc -g toctoc -m 700 "$STATE/data/sources"
+  install -o toctoc -g toctoc -m 640 "$STATE/routing/pois/commerces-osm.json" "$STATE/data/sources/commerces-osm.json"
 fi
 # The images come from ghcr.io; on a slow or flaky link a pull can be reset midway. Layers already fetched are kept,
 # so retrying resumes where the previous attempt stopped.

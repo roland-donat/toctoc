@@ -1,9 +1,18 @@
 import { randomUUID } from "node:crypto"
+import { existsSync } from "node:fs"
 import { mkdir, rm, writeFile } from "node:fs/promises"
 import { join } from "node:path"
 import { and, asc, eq, isNull } from "drizzle-orm"
 import { Hono, type Context } from "hono"
 import { z } from "zod"
+import {
+  CommercesFormatError,
+  commercesFilePath,
+  commercesStatus,
+  loadCommerces,
+  loadCommercesFile,
+  parseCommerces,
+} from "../services/commerces-loader.ts"
 import type { AppContext } from "../context.ts"
 import { readJson } from "../lib/http.ts"
 import { addresses, registrations } from "../db/schema/index.ts"
@@ -101,6 +110,7 @@ export function importRoutes(ctx: AppContext, deps: ImportRoutesDeps = {}): Hono
       const body = err.code === "emargement_invalid_header" ? { error: err.code, missingColumns: err.missingColumns } : { error: err.code }
       return c.json(body, EMARGEMENT_ERROR_STATUS[err.code])
     }
+    if (err instanceof CommercesFormatError) return c.json({ error: "commerces_invalid_file" }, 400)
     if (err instanceof BanDownloadError) {
       logError("ban_download_failed", err)
       return c.json({ error: "ban_download_failed" }, 502)
@@ -128,6 +138,21 @@ export function importRoutes(ctx: AppContext, deps: ImportRoutesDeps = {}): Hono
   })
 
   app.get("/ban/status", (c) => c.json(banStatus(ctx)))
+
+  // Shop fronts from OpenStreetMap: the file the installation dropped on the server, or one uploaded.
+  app.post("/commerces/load", async (c) => {
+    const path = commercesFilePath(ctx)
+    if (!existsSync(path)) return c.json({ error: "commerces_file_missing" }, 404)
+    return c.json(await loadCommercesFile(ctx, path))
+  })
+
+  app.post("/commerces", async (c) => {
+    const file = await readUpload(c)
+    if (file === null) return c.json({ error: "file_required" }, 400)
+    return c.json(loadCommerces(ctx, parseCommerces(await file.text())))
+  })
+
+  app.get("/commerces/status", (c) => c.json(commercesStatus(ctx)))
 
   app.post("/rep", async (c) => {
     const file = await readUpload(c)

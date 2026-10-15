@@ -9,6 +9,7 @@ export const CATEGORIES = [
   "abstention_moyenne",
   "votants",
   "sans_inscrit",
+  "commerce_probable",
   "non_localise",
   "exclue",
 ] as const
@@ -115,16 +116,20 @@ export interface CategoryInput {
    * Géoplateforme fallback (refused by the KTD3 checks): the door likely has an elector, not "sans inscrit".
    */
   proposedForQueuedElector: boolean
+  /** OpenStreetMap lists a shop front here and the administrator has not said it is lived in. */
+  commerce: boolean
 }
 
 /** Category of R7, plus "non_localise" for addresses of a street whose electors are not located at a number. */
-export function addressCategory({ excluded, levels, streetLevelElectorsOnStreet, proposedForQueuedElector }: CategoryInput): Category {
+export function addressCategory({ excluded, levels, streetLevelElectorsOnStreet, proposedForQueuedElector, commerce }: CategoryInput): Category {
   if (excluded) return "exclue"
   // A new 2027 registrant has no 2026 history; it counts as a strong-potential target (decided 13/10/2026).
   if (levels.includes("fort") || levels.includes("nouvel_inscrit")) return "abstention_forte"
   if (levels.includes("moyen")) return "abstention_moyenne"
   if (levels.length > 0) return "votants"
-  return streetLevelElectorsOnStreet || proposedForQueuedElector ? "non_localise" : "sans_inscrit"
+  if (streetLevelElectorsOnStreet || proposedForQueuedElector) return "non_localise"
+  // A shop front with no voter: not a door to knock by default, the administrator can give it back (15/10/2026).
+  return commerce ? "commerce_probable" : "sans_inscrit"
 }
 
 const PARIS_DATE = new Intl.DateTimeFormat("en-CA", { timeZone: "Europe/Paris", year: "numeric", month: "2-digit", day: "2-digit" })

@@ -83,6 +83,7 @@ export const LIST_TYPE_LABELS: Record<ListType, string> = {
 }
 
 export const banStatusKey = ["imports", "ban", "status"] as const
+export const commercesStatusKey = ["imports", "commerces", "status"] as const
 export const repStatusKey = ["imports", "rep", "status"] as const
 export const queueKey = ["imports", "queue"] as const
 
@@ -95,6 +96,25 @@ function fileForm(file: File): FormData {
 export const fetchBanStatus = () => fetchJSON<BanStatus>("/imports/ban/status")
 
 export const downloadBan = () => fetchJSON<BanLoadResult>("/imports/ban/download", { method: "POST" })
+
+export interface CommercesStatus {
+  total: number
+  attached: number
+  loadedAt: number | null
+  fileAvailable: boolean
+}
+
+export interface CommercesLoadResult {
+  total: number
+  attached: number
+}
+
+export const fetchCommercesStatus = () => fetchJSON<CommercesStatus>("/imports/commerces/status")
+
+export const loadServerCommerces = () => fetchJSON<CommercesLoadResult>("/imports/commerces/load", { method: "POST" })
+
+export const uploadCommerces = (file: File) =>
+  fetchJSON<CommercesLoadResult>("/imports/commerces", { method: "POST", body: fileForm(file) })
 
 export const uploadBan = (file: File) =>
   fetchJSON<BanLoadResult>("/imports/ban", { method: "POST", body: fileForm(file) })

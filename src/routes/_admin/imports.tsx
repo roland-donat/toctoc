@@ -7,6 +7,10 @@ import { EmargementBlock } from "@/components/import-emargement-dialog"
 import { Button } from "@/components/ui/button"
 import { errorLabel, localDateTimeFormat, numberFormat, percentFormat } from "@/lib/format"
 import {
+  commercesStatusKey,
+  fetchCommercesStatus,
+  loadServerCommerces,
+  uploadCommerces,
   banStatusKey,
   confirmRepImport,
   downloadBan,
@@ -30,6 +34,8 @@ export const Route = createFileRoute("/_admin/imports")({
 const ERROR_LABELS: Record<string, string> = {
   file_required: "Aucun fichier sélectionné.",
   ban_invalid_header: "Ce fichier n'a pas les colonnes attendues de la BAN.",
+  commerces_file_missing: "Aucun fichier de commerces sur le serveur : relancez l'installation, ou chargez le fichier à la main.",
+  commerces_invalid_file: "Ce fichier n'est pas la liste des commerces extraite d'OpenStreetMap.",
   ban_download_failed: "Le téléchargement de la BAN a échoué. Réessayez plus tard ou chargez le fichier à la main.",
   rep_invalid_header: "Ce fichier n'a pas les colonnes attendues d'une liste électorale au format REP.",
   rep_empty: "Le fichier ne contient aucune ligne.",
@@ -51,6 +57,7 @@ function ImportsPage() {
       <BanBlock />
       <RepBlock />
       <EmargementBlock />
+      <CommercesBlock />
     </main>
   )
 }
@@ -84,6 +91,54 @@ function BanBlock() {
         </Button>
         <FilePicker label="Charger un fichier BAN" accept=".csv,.gz,text/csv" disabled={busy} onFile={(f) => upload.mutate(f)} />
       </div>
+      {error && <p className="text-sm text-destructive">{errorLabel(error, ERROR_LABELS)}</p>}
+    </section>
+  )
+}
+
+function CommercesBlock() {
+  const queryClient = useQueryClient()
+  const status = useQuery({ queryKey: commercesStatusKey, queryFn: fetchCommercesStatus })
+  const refresh = () => {
+    void queryClient.invalidateQueries({ queryKey: commercesStatusKey })
+    // Categories change: the map and the address sheets read again.
+    void queryClient.invalidateQueries({ queryKey: ["carte"] })
+    void queryClient.invalidateQueries({ queryKey: ["adresses"] })
+  }
+  const load = useMutation({ mutationFn: loadServerCommerces, onSuccess: refresh })
+  const upload = useMutation({ mutationFn: uploadCommerces, onSuccess: refresh })
+  const busy = load.isPending || upload.isPending
+  const error = load.error ?? upload.error
+  const s = status.data
+
+  return (
+    <section aria-labelledby="commerces-title" className="space-y-3">
+      <h2 id="commerces-title" className="text-lg font-extrabold">
+        Commerces (OpenStreetMap), facultatif
+      </h2>
+      <p className="text-sm text-muted-foreground">
+        Une adresse sans inscrit où OpenStreetMap recense une vitrine passe en « commerce probable », hors des itinéraires. Une
+        adresse avec des inscrits reste une cible. La fiche adresse permet de la rendre à « sans inscrit ».
+      </p>
+      {s && (
+        <p className="text-sm">
+          {s.loadedAt === null
+            ? "Aucun commerce chargé."
+            : `${numberFormat.format(s.total)} ${s.total > 1 ? "commerces" : "commerce"}, dont ${numberFormat.format(s.attached)} ${s.attached > 1 ? "rattachés" : "rattaché"} à une adresse, chargés le ${localDateTimeFormat.format(s.loadedAt)}.`}
+        </p>
+      )}
+      <div className="flex flex-wrap gap-2">
+        <Button disabled={busy || s?.fileAvailable === false} onClick={() => load.mutate()}>
+          <Download />
+          {load.isPending ? "Chargement…" : "Charger les commerces du serveur"}
+        </Button>
+        <FilePicker label="Charger un fichier de commerces" accept=".json,application/json" disabled={busy} onFile={(f) => upload.mutate(f)} />
+      </div>
+      {s?.fileAvailable === false && (
+        <p className="text-xs text-muted-foreground">
+          Le fichier est préparé avec le réseau routier de la commune par l'installation (deploy/osrm/prepare-commune.sh).
+        </p>
+      )}
       {error && <p className="text-sm text-destructive">{errorLabel(error, ERROR_LABELS)}</p>}
     </section>
   )

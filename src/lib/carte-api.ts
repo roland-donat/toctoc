@@ -9,6 +9,7 @@ export const CATEGORIES = [
   "abstention_moyenne",
   "votants",
   "sans_inscrit",
+  "commerce_probable",
   "non_localise",
   "exclue",
 ] as const
@@ -25,6 +26,7 @@ export const CATEGORY_LABELS: Record<Category, string> = {
   abstention_moyenne: "Abstention moyenne",
   votants: "Votants",
   sans_inscrit: "Sans inscrit",
+  commerce_probable: "Commerce probable",
   non_localise: "Inscrits non localisés",
   exclue: "Exclue",
 }
@@ -119,6 +121,8 @@ export interface AddressSheet {
   followUp: FollowUp
   lastVisit: string | null
   dwellings: number | null
+  /** Shop fronts OpenStreetMap lists here (main tags such as "shop=bakery"), null when none. */
+  commerce: { kinds: string[]; dismissed: boolean } | null
   exclusion: Exclude<Qualification, "annulation"> | null
   voters: SheetVoter[]
   visits: SheetVisit[]
@@ -173,6 +177,43 @@ export const updateDwellings = (id: string, dwellings: number | null) =>
     keepalive: true,
   })
 
+export const setCommerceDismissed = (id: string, commerceDismissed: boolean) =>
+  fetchJSON<{ id: string }>(`/adresses/${encodeURIComponent(id)}`, { method: "PATCH", body: JSON.stringify({ commerceDismissed }) })
+
+const COMMERCE_LABELS: Record<string, string> = {
+  "shop=bakery": "boulangerie",
+  "shop=butcher": "boucherie",
+  "shop=convenience": "épicerie",
+  "shop=supermarket": "supermarché",
+  "shop=hairdresser": "coiffeur",
+  "shop=beauty": "institut de beauté",
+  "shop=clothes": "vêtements",
+  "shop=florist": "fleuriste",
+  "shop=car_repair": "garage",
+  "shop=tobacco": "tabac",
+  "shop=optician": "opticien",
+  "amenity=restaurant": "restaurant",
+  "amenity=fast_food": "restauration rapide",
+  "amenity=cafe": "café",
+  "amenity=bar": "bar",
+  "amenity=pub": "bar",
+  "amenity=pharmacy": "pharmacie",
+  "amenity=bank": "banque",
+  "amenity=post_office": "bureau de poste",
+  "amenity=doctors": "cabinet médical",
+  "amenity=dentist": "dentiste",
+  "tourism=hotel": "hôtel",
+}
+
+/** French name of an OpenStreetMap shop front, e.g. "shop=bakery" gives "boulangerie". */
+export function commerceLabel(kind: string): string {
+  const known = COMMERCE_LABELS[kind]
+  if (known) return known
+  const [key, value] = kind.split("=")
+  const generic = key === "shop" ? "commerce" : key === "office" ? "bureau" : "établissement"
+  return value && value !== "yes" ? `${generic} (${value.replaceAll("_", " ")})` : generic
+}
+
 export const cancelQualification = (addressId: string) =>
   fetchJSON<SheetVisit>("/retours/annulation", {
     method: "POST",
@@ -213,6 +254,7 @@ export const CATEGORY_COLORS: Record<Category, string> = {
   abstention_moyenne: "#e39a12",
   votants: "#3885f4",
   sans_inscrit: "#ed5fb1",
+  commerce_probable: "#a0785a",
   non_localise: "#8b9099",
   exclue: "#3d3f45",
 }

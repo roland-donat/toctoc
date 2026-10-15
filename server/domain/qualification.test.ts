@@ -108,7 +108,7 @@ describe("followUpState", () => {
 })
 
 describe("addressCategory", () => {
-  const none = { excluded: false, streetLevelElectorsOnStreet: false, proposedForQueuedElector: false }
+  const none = { excluded: false, streetLevelElectorsOnStreet: false, proposedForQueuedElector: false, commerce: false }
 
   it("ranks the worst potential first", () => {
     expect(addressCategory({ ...none, levels: ["votant", "moyen", "fort"] })).toBe("abstention_forte")
@@ -127,6 +127,12 @@ describe("addressCategory", () => {
     expect(addressCategory({ ...none, levels: [] })).toBe("sans_inscrit")
     expect(addressCategory({ ...none, streetLevelElectorsOnStreet: true, levels: [] })).toBe("non_localise")
     expect(addressCategory({ ...none, proposedForQueuedElector: true, levels: [] })).toBe("non_localise")
+  })
+
+  it("is a commerce probable when a shop front stands at a door with no voter, a target when voters live there", () => {
+    expect(addressCategory({ ...none, commerce: true, levels: [] })).toBe("commerce_probable")
+    expect(addressCategory({ ...none, commerce: true, levels: ["fort"] })).toBe("abstention_forte")
+    expect(addressCategory({ ...none, commerce: true, streetLevelElectorsOnStreet: true, levels: [] })).toBe("non_localise")
   })
 
   it("is exclue before anything else", () => {

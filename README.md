@@ -2,7 +2,7 @@
 
 Application de porte-à-porte militant.
 
-- Carte des portes : chaque adresse de la commune, qualifiée selon le potentiel de mobilisation de ses inscrits, avec le suivi des visites.
+- Carte des portes : chaque adresse de la commune, qualifiée selon le potentiel de mobilisation de ses inscrits, avec le suivi des visites. Les vitrines recensées par OpenStreetMap signalent les commerces, pour ne pas les prendre pour des logements sans inscrit.
 - Statistiques : participation par tranche d'âge, bureau de vote et rue, pour savoir où porter l'effort.
 - Itinéraires : une zone et une durée choisies, TOCTOC propose une tournée à pied optimisée qui privilégie les portes au plus fort potentiel. Le calcul tourne sur le serveur lui-même.
 - Lien terrain : chaque tournée a un lien privé à ouvrir sur téléphone, sans compte. Le militant y saisit ses retours porte par porte, y compris sans réseau. L'écran peut s'installer sur l'écran d'accueil.

@@ -5,7 +5,7 @@ import { Hono } from "hono"
 import { z } from "zod"
 import type { AppContext } from "../context.ts"
 import { readJson } from "../lib/http.ts"
-import { addresses, electors, registrations, voteHistory } from "../db/schema/index.ts"
+import { addresses, commerces, electors, registrations, voteHistory } from "../db/schema/index.ts"
 import type { AgeBand } from "../db/schema/cheatsheets.ts"
 import { ageAt, ageBand } from "../domain/age.ts"
 import { anonymize, namesAllowed } from "../domain/anonymize.ts"
@@ -38,6 +38,11 @@ export interface AddressSheet {
   followUp: FollowUp
   lastVisit: string | null
   dwellings: number | null
+  /**
+   * Shop fronts OpenStreetMap lists at the address (main tags), and whether the administrator said the address is
+   * lived in anyway; null when none.
+   */
+  commerce: { kinds: string[]; dismissed: boolean } | null
   /** Qualification excluding the address (R5), which the administrator may cancel; null otherwise. */
   exclusion: ExclusionQualification | null
   voters: SheetVoter[]
@@ -115,7 +120,14 @@ function sheetVoters(ctx: AppContext, addressId: string): SheetVoter[] {
 
 function addressSheet(ctx: AppContext, id: string): AddressSheet | null {
   const place = ctx.db
-    .select({ id: addresses.id, kind: addresses.kind, number: addresses.number, rep: addresses.rep, streetName: addresses.streetName })
+    .select({
+      id: addresses.id,
+      kind: addresses.kind,
+      number: addresses.number,
+      rep: addresses.rep,
+      streetName: addresses.streetName,
+      commerceDismissedAt: addresses.commerceDismissedAt,
+    })
     .from(addresses)
     .where(eq(addresses.id, id))
     .get()
@@ -123,6 +135,7 @@ function addressSheet(ctx: AppContext, id: string): AddressSheet | null {
   const status = computeAddressStatuses(ctx, { addressIds: [id] })[0]
   if (!status) return null
   const history = listVisits(ctx.db, id)
+  const kinds = ctx.db.select({ kind: commerces.kind }).from(commerces).where(eq(commerces.addressId, id)).all().map((k) => k.kind)
   return {
     id,
     label: addressLabel(place),
@@ -131,13 +144,18 @@ function addressSheet(ctx: AppContext, id: string): AddressSheet | null {
     followUp: status.followUp,
     lastVisit: status.lastVisit,
     dwellings: status.dwellings,
+    commerce: kinds.length === 0 ? null : { kinds: [...new Set(kinds)].sort(), dismissed: place.commerceDismissedAt !== null },
     exclusion: activeExclusion(history),
     voters: sheetVoters(ctx, id),
     visits: history,
   }
 }
 
-const dwellingsSchema = z.object({ dwellings: z.number().int().min(0).max(999).nullable() }).strict()
+/** Number of dwellings (R9), and "this commerce probable is lived in" (15/10/2026); at least one of them. */
+const updateSchema = z
+  .object({ dwellings: z.number().int().min(0).max(999).nullable().optional(), commerceDismissed: z.boolean().optional() })
+  .strict()
+  .refine((v) => v.dwellings !== undefined || v.commerceDismissed !== undefined)
 
 /** Mounted at /api/adresses. */
 export function adressesRoutes(ctx: AppContext): Hono {
@@ -150,13 +168,19 @@ export function adressesRoutes(ctx: AppContext): Hono {
   })
 
   app.patch("/:id", async (c) => {
-    const parsed = dwellingsSchema.safeParse(await readJson(c.req.raw))
+    const parsed = updateSchema.safeParse(await readJson(c.req.raw))
     if (!parsed.success) return c.json({ error: "invalid_body" }, 400)
+    const now = ctx.now().getTime()
+    const { dwellings, commerceDismissed } = parsed.data
     const updated = ctx.db
       .update(addresses)
-      .set({ dwellings: parsed.data.dwellings, updatedAt: ctx.now().getTime() })
+      .set({
+        ...(dwellings !== undefined ? { dwellings } : {}),
+        ...(commerceDismissed !== undefined ? { commerceDismissedAt: commerceDismissed ? now : null } : {}),
+        updatedAt: now,
+      })
       .where(eq(addresses.id, c.req.param("id")))
-      .returning({ id: addresses.id, dwellings: addresses.dwellings })
+      .returning({ id: addresses.id, dwellings: addresses.dwellings, commerceDismissedAt: addresses.commerceDismissedAt })
       .all()[0]
     if (!updated) return c.json({ error: "address_not_found" }, 404)
     return c.json(updated)
