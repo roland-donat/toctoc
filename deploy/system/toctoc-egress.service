@@ -1,0 +1,19 @@
+[Unit]
+Description=TOCTOC, cloisonnement réseau sortant (ni l'application ni Caddy n'atteignent le réseau local)
+# Before the services it contains, so they never run unconfined.
+Before=toctoc.service caddy.service
+Wants=network-pre.target
+After=network-pre.target
+
+[Service]
+Type=oneshot
+RemainAfterExit=yes
+ExecStart=/etc/toctoc/toctoc-egress.sh
+# Swaps the rules in place: a redeploy reloads them without stopping the application and Caddy, which require
+# this unit and would be stopped by a restart.
+ExecReload=/etc/toctoc/toctoc-egress.sh
+ExecStop=/usr/bin/nft delete table inet toctoc_egress
+
+[Install]
+WantedBy=multi-user.target
+RequiredBy=toctoc.service caddy.service

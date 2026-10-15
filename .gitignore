@@ -1,0 +1,34 @@
+node_modules/
+dist/
+*.local
+.DS_Store
+
+# Generated
+src/routeTree.gen.ts
+playwright-report/
+test-results/
+
+# Real data never enters the repository
+data/
+*.db
+*.db-*
+*.sqlite
+*.csv
+!tests/fixtures/**/*.csv
+*.csv.gz
+!tests/fixtures/**/*.csv.gz
+config.json
+
+# Settings and secrets of an installation
+.env
+.env.*
+!.env.example
+
+# Design mockups are throwaway artifacts
+docs/mockups/
+
+# Private working documents: design plan, local agent notes, tooling settings
+docs/plans/
+CLAUDE.local.md
+.compound-engineering/
+.playwright-mcp/

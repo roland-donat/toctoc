@@ -1,0 +1,74 @@
+#!/usr/bin/env bash
+# Security checks of the TOCTOC deployment, from the administrator's computer:
+# 1. from here, what the internet sees: DNS, certificate, HTTPS redirect, security headers, closed API, open ports;
+# 2. on the server, as root (no password once the sudo rule is installed): services, containment of the app and of Caddy, privileges,
+#    one backup run (deploy/check-server.sh, installed as /usr/local/sbin/toctoc-check).
+# Exits non-zero when a check fails. Settings: .env (see .env.example). Usage: bin/toctoc-check-cyber [--local-only]
+set -uo pipefail
+ROOT="$(cd "$(dirname "$(readlink -f "${BASH_SOURCE[0]}")")/.." && pwd)"
+source "$ROOT/deploy/deploy-env.sh"
+HOST="$TOCTOC_DEPLOY_HOST"
+DOMAIN="$TOCTOC_DOMAIN"
+URL="https://$DOMAIN"
+
+FAILED=0
+report() { if [[ $1 == OK ]]; then printf '  OK    %s\n' "$2"; else printf '  FAIL  %s\n' "$2"; FAILED=$((FAILED + 1)); fi; }
+note() { printf '  NOTE  %s\n' "$1"; }
+
+echo "== Name and certificate ($DOMAIN)"
+IPV4="$(getent ahostsv4 "$DOMAIN" | awk 'NR == 1 {print $1}')"
+if [[ -n $IPV4 ]]; then report OK "A record: $IPV4"; else report FAIL "no A record"; fi
+IPV6="$(getent ahostsv6 "$DOMAIN" | awk 'NR == 1 && $1 !~ /^::ffff:/ {print $1}')"
+if [[ -n $IPV6 ]]; then
+  # A name may also publish an IPv6 address that does not reach the server (the box itself, when it forwards IPv4
+  # only): browsers race both families and keep the one that answers, tools that try IPv6 alone wait or fail.
+  if timeout 5 bash -c "</dev/tcp/$IPV6/443" 2>/dev/null; then v6=answers; else v6="does not answer"; fi
+  note "AAAA record $IPV6 ($v6 on 443): if it is not the server, browsers fall back to IPv4"
+fi
+# The certificate is read on the IPv4 address, which reaches the server in every setup.
+END="$(echo | timeout 10 openssl s_client -connect "$IPV4:443" -servername "$DOMAIN" 2>/dev/null | openssl x509 -noout -enddate 2>/dev/null | cut -d= -f2)"
+if [[ -n $END ]]; then
+  DAYS=$(( ($(date -d "$END" +%s) - $(date +%s)) / 86400 ))
+  if (( DAYS >= 14 )); then report OK "certificate valid, $DAYS days left"; else report FAIL "certificate expires in $DAYS days"; fi
+else
+  report FAIL "no certificate on $DOMAIN:443"
+fi
+if curl -fsS --max-time 10 "$URL/api/health" >/dev/null 2>&1; then report OK "HTTPS answers, chain trusted"; else report FAIL "$URL/api/health"; fi
+REDIRECT="$(curl -s -o /dev/null --max-time 10 -w '%{http_code} %{redirect_url}' "http://$DOMAIN/")"
+if [[ $REDIRECT == "308 https://$DOMAIN/" || $REDIRECT == "301 https://$DOMAIN/" ]]; then report OK "HTTP redirects to HTTPS"; else report FAIL "HTTP answers $REDIRECT"; fi
+
+echo "== Headers and access"
+HEADERS="$(curl -sSI --max-time 10 "$URL/" | tr 'A-Z' 'a-z')"
+for header in strict-transport-security content-security-policy x-frame-options x-content-type-options referrer-policy permissions-policy; do
+  if grep -q "^$header:" <<<"$HEADERS"; then report OK "header $header"; else report FAIL "header $header missing"; fi
+done
+for path in /api/stats /api/carte /api/itineraires /api/parametres /api/auth/me; do
+  code="$(curl -s -o /dev/null --max-time 10 -w '%{http_code}' "$URL$path")"
+  if [[ $code == 401 ]]; then report OK "$path refused without session ($code)"; else report FAIL "$path answers $code without session"; fi
+done
+
+echo "== Ports of the public address $IPV4"
+# Common service ports, TOCTOC's own internal ones included. Run from the server's own network, the probe goes
+# through the box (NAT loopback): close to an outside scan, not a substitute for one.
+for port in 21 22 23 25 53 80 443 2019 3000 3010 3306 5000 5432 6379 8000 8080 8443 9000 11434; do
+  if timeout 4 bash -c "</dev/tcp/$IPV4/$port" 2>/dev/null; then state=open; else state=closed; fi
+  expected=closed; [[ $port == 80 || $port == 443 ]] && expected=open
+  if [[ $state == "$expected" ]]; then report OK "port $port $state"; else report FAIL "port $port $state (expected $expected)"; fi
+done
+
+if [[ ${1:-} != --local-only ]]; then
+  echo "== On the server ($HOST, sudo)"
+  # Without password through /etc/sudoers.d/toctoc; with the sudo password otherwise.
+  if ssh -t "$HOST" 'test -x /usr/local/sbin/toctoc-check || exit 1
+    if sudo -n -l /usr/local/sbin/toctoc-check >/dev/null 2>&1; then sudo -n /usr/local/sbin/toctoc-check; else sudo /usr/local/sbin/toctoc-check; fi'; then
+    :
+  else
+    FAILED=$((FAILED + 1))
+    echo "  FAIL  server checks (if /usr/local/sbin/toctoc-check is missing, run bin/toctoc-deploy first)"
+  fi
+fi
+
+echo
+note "still to do by hand now and then: open $URL from a phone on 4G, Wi-Fi off"
+if [[ $FAILED -eq 0 ]]; then echo "All checks passed."; else echo "$FAILED check(s) failed."; fi
+exit $(( FAILED > 0 ))

@@ -1,0 +1,95 @@
+@import "tailwindcss";
+@import "@fontsource-variable/public-sans/wght.css";
+@import "@fontsource/gowun-batang/latin-400.css";
+@import "@fontsource/gowun-batang/latin-700.css";
+
+@custom-variant dark (&:is(.dark *));
+
+@theme inline {
+  /* Charte graphique de la France insoumise, palette 2027 (lafranceinsoumise.fr/charte-graphique). */
+  --color-lfi-violet: #4c0297;
+  --color-lfi-violet-vif: #7b13d6;
+  --color-lfi-rouge: #d1271c;
+  --color-lfi-creme: #fffcf4;
+  --color-lfi-charbon: #212320;
+  --color-lfi-rose: #ed5fb1;
+  --color-lfi-jaune: #f9c900;
+  --color-lfi-vert: #2e9959;
+  --color-lait-fraise: #f7b6cf;
+
+  --color-background: #fffcf4;
+  --color-foreground: #212320;
+  --color-card: #ffffff;
+  --color-card-foreground: #212320;
+  --color-popover: #ffffff;
+  --color-popover-foreground: #212320;
+  --color-primary: #4c0297;
+  --color-primary-foreground: #fffcf4;
+  --color-secondary: #f1e8fb;
+  --color-secondary-foreground: #4c0297;
+  --color-muted: #f4efe3;
+  --color-muted-foreground: #66645c;
+  --color-accent: #f1e8fb;
+  --color-accent-foreground: #4c0297;
+  --color-destructive: #d1271c;
+  --color-destructive-foreground: #d1271c;
+  --color-border: #e6dfcf;
+  --color-input: #ddd5c2;
+  --color-ring: #7b13d6;
+  --radius-sm: 0.375rem;
+  --radius-md: 0.5rem;
+  --radius-lg: 0.75rem;
+  --radius-xl: 1rem;
+
+  /* Titles in the black weight, as the charter asks (Public Sans is its free alternative to Config). */
+  --font-sans: "Public Sans Variable", system-ui, -apple-system, sans-serif;
+  --font-display: "Public Sans Variable", system-ui, sans-serif;
+  /* The charter's free body face, kept for the few lines meant to be read as a voice, not as an interface. */
+  --font-serif: "Gowun Batang", Georgia, serif;
+
+  /* Custom colors for voter status */
+  /* Same blue as the "votants" doors of the map. */
+  --color-voted: #3885f4;
+  --color-voted-bg: #e9f1fe;
+  /* Same red as the "abstention forte" doors of the map. */
+  --color-not-voted: #d1271c;
+  --color-not-voted-bg: #fcebea;
+}
+
+@layer base {
+  * {
+    @apply border-border;
+  }
+  body {
+    @apply bg-background text-foreground;
+    font-family: var(--font-sans);
+    margin: 0;
+    -webkit-font-smoothing: antialiased;
+  }
+  ::selection {
+    background: var(--color-lait-fraise);
+    color: var(--color-lfi-charbon);
+  }
+}
+
+@layer components {
+  /* Screen titles: black weight, capitals, violet, with a short red rule under them. */
+  .page-title {
+    font-family: var(--font-display);
+    font-size: 1.75rem;
+    line-height: 1.1;
+    font-weight: 900;
+    letter-spacing: -0.015em;
+    text-transform: uppercase;
+    color: var(--color-primary);
+  }
+  .page-title::after {
+    content: "";
+    display: block;
+    width: 2.5rem;
+    height: 0.3rem;
+    margin-top: 0.5rem;
+    border-radius: 999px;
+    background: var(--color-lfi-rouge);
+  }
+}

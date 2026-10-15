@@ -1,0 +1,52 @@
+#!/usr/sbin/nft -f
+# Egress containment of TOCTOC on its server. Should the Node app (user toctoc) or Caddy (user caddy) ever be taken
+# over from the internet, neither reaches the local network nor the other services of the machine:
+# - on the LAN, only DNS to the resolvers of /etc/resolv.conf;
+# - on loopback, only what each needs: the app reaches OSRM (5000) and VROOM (3010), Caddy reaches the app (3000);
+#   every other local port stays out of reach;
+# - the internet stays open (Let's Encrypt, Géoplateforme, npm registry for builds).
+# Loaded by toctoc-egress.sh (toctoc-egress.service), which adds the resolvers and the on-link prefixes of the
+# machine, the public IPv6 prefix of the local network included. Never part of /etc/nftables.conf, whose "flush ruleset" would wipe Docker's rules.
+#
+# Priority -150: after conntrack (replies of accepted connections pass), before Docker's NAT rewrites 127.0.0.1
+# towards its bridges (the destination checked is the one the process asked for).
+
+table inet toctoc_egress
+delete table inet toctoc_egress
+
+table inet toctoc_egress {
+	set lan4 {
+		type ipv4_addr
+		flags interval
+		elements = { 10.0.0.0/8, 100.64.0.0/10, 169.254.0.0/16, 172.16.0.0/12, 192.168.0.0/16 }
+	}
+	set lan6 {
+		type ipv6_addr
+		flags interval
+		elements = { fc00::/7, fe80::/10 }
+	}
+
+	# Filled by toctoc-egress.sh from /etc/resolv.conf.
+	set dns4 {
+		type ipv4_addr
+	}
+	set dns6 {
+		type ipv6_addr
+	}
+
+	chain output {
+		type filter hook output priority -150; policy accept;
+		meta skuid != { "toctoc", "caddy" } accept
+		ct state established,related accept
+		# Name resolution through the resolvers of the machine, a local stub (127.0.0.53) included.
+		ip daddr @dns4 meta l4proto { tcp, udp } th dport 53 accept
+		ip6 daddr @dns6 meta l4proto { tcp, udp } th dport 53 accept
+		# Loopback: only the ports each one needs.
+		meta skuid "toctoc" ip daddr 127.0.0.1 tcp dport { 5000, 3010 } accept
+		meta skuid "caddy" ip daddr 127.0.0.1 tcp dport 3000 accept
+		ip daddr 127.0.0.0/8 counter reject
+		ip6 daddr ::1 counter reject
+		ip daddr @lan4 counter reject
+		ip6 daddr @lan6 counter reject
+	}
+}

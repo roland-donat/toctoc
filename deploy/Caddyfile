@@ -1,0 +1,21 @@
+# TOCTOC behind Caddy on its server (KTD4). TLS ends here, with a Let's Encrypt certificate for the domain.
+# TOCTOC_DOMAIN is set in /etc/caddy/toctoc.env (see docs/deploiement.md).
+{
+	# No admin API: on localhost it would let any local process (the app included) rewrite the proxy config.
+	admin off
+}
+
+{$TOCTOC_DOMAIN} {
+	encode zstd gzip
+	# Largest legitimate body: an imported electoral list (the app caps each route more tightly).
+	request_body {
+		max_size 25MB
+	}
+	header {
+		Strict-Transport-Security "max-age=31536000"
+		-Server
+	}
+	# Only the Node app is reachable; OSRM and VROOM stay on 127.0.0.1 and are never proxied.
+	reverse_proxy 127.0.0.1:3000
+	# No access log: request paths of the field space must not be kept, and nothing else needs them.
+}

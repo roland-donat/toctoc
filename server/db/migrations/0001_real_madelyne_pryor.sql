@@ -1,0 +1,1 @@
+ALTER TABLE `imports` ADD `reference_import_id` text;

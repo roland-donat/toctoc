@@ -1,0 +1,28 @@
+[Unit]
+Description=TOCTOC, sauvegarde chiffrée quotidienne
+After=toctoc.service
+
+[Service]
+Type=oneshot
+User=toctoc
+Group=toctoc
+WorkingDirectory=/opt/toctoc
+Environment=TOCTOC_CONFIG=/etc/toctoc/config.json
+Environment=TOCTOC_ENV_FILE=/etc/toctoc/toctoc.env
+ExecStart=/opt/toctoc/deploy/backup.sh
+UMask=0077
+# A backup needs no network at all.
+PrivateNetwork=true
+NoNewPrivileges=true
+CapabilityBoundingSet=
+PrivateDevices=true
+ProtectKernelTunables=true
+ProtectKernelModules=true
+ProtectControlGroups=true
+RestrictNamespaces=true
+RestrictAddressFamilies=AF_UNIX
+SystemCallArchitectures=native
+ProtectSystem=strict
+ProtectHome=true
+PrivateTmp=true
+ReadWritePaths=/var/lib/toctoc

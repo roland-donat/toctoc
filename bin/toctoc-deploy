@@ -1,0 +1,43 @@
+#!/usr/bin/env bash
+# Deploys the main branch of this repository to the server in one command, from the administrator's computer:
+# git bundle, copy to a private staging directory on the server, then deploy/install-server.sh under sudo (asks the
+# sudo password of the server the first time only). Idempotent: the database and the administrator password are
+# kept. Settings: .env at the root of the repository (see .env.example and deploy/deploy-env.sh).
+# Usage: bin/toctoc-deploy
+set -euo pipefail
+ROOT="$(cd "$(dirname "$(readlink -f "${BASH_SOURCE[0]}")")/.." && pwd)"
+source "$ROOT/deploy/deploy-env.sh"
+: "${TOCTOC_BACKUP_RECIPIENT:?set TOCTOC_BACKUP_RECIPIENT in $TOCTOC_REPO_ENV (see .env.example)}"
+HOST="$TOCTOC_DEPLOY_HOST"
+
+COMMIT="$(git -C "$ROOT" rev-parse --short main)"
+echo "Deploying main ($COMMIT: $(git -C "$ROOT" log -1 --format=%s main)) to $HOST as https://$TOCTOC_DOMAIN"
+[[ -z "$(git -C "$ROOT" status --porcelain --untracked-files=no)" ]] \
+  || echo "note: uncommitted changes in $ROOT are not deployed, only the main branch is" >&2
+
+BUNDLE="$(mktemp --suffix=.bundle)"
+trap 'rm -f "$BUNDLE"' EXIT
+git -C "$ROOT" bundle create --quiet "$BUNDLE" main
+ssh "$HOST" 'install -d -m 700 ~/toctoc-staging'
+scp -q "$BUNDLE" "$HOST:toctoc-staging/toctoc.bundle"
+ssh "$HOST" 'chmod 600 ~/toctoc-staging/toctoc.bundle'
+
+# The installer runs from a fresh clone of the bundle, never from a file the unprivileged account could change
+# between the copy and the sudo.
+REMOTE="git clone -q --branch main ~$(ssh "$HOST" 'id -un')/toctoc-staging/toctoc.bundle /tmp/toctoc-install \
+&& bash /tmp/toctoc-install/deploy/install-server.sh --domain $(printf %q "$TOCTOC_DOMAIN") \
+--recipient $(printf %q "$TOCTOC_BACKUP_RECIPIENT"); status=\$?; rm -rf /tmp/toctoc-install; exit \$status"
+# After the first installation, /etc/sudoers.d/toctoc allows the root-owned /usr/local/sbin/toctoc-deploy without
+# password; the first one, or a change of domain or backup key, goes through the interactive sudo.
+if [[ -z ${TOCTOC_REINSTALL:-} ]] && ssh "$HOST" 'sudo -n -l /usr/local/sbin/toctoc-deploy' >/dev/null 2>&1; then
+  ssh "$HOST" 'sudo -n /usr/local/sbin/toctoc-deploy'
+else
+  ssh -t "$HOST" "sudo bash -c $(printf %q "$REMOTE")"
+fi
+
+DEPLOYED="$(ssh "$HOST" 'git -C /opt/toctoc rev-parse --short HEAD')"
+[[ "$DEPLOYED" == "$COMMIT" ]] || { echo "the server runs $DEPLOYED, expected $COMMIT" >&2; exit 1; }
+curl -fsS --max-time 10 "https://$TOCTOC_DOMAIN/api/health" >/dev/null \
+  || { echo "https://$TOCTOC_DOMAIN/api/health does not answer" >&2; exit 1; }
+echo
+echo "Deployed $COMMIT, https://$TOCTOC_DOMAIN answers. Security checks: bin/toctoc-check-cyber"

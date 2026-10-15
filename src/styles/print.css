@@ -1,0 +1,153 @@
+/* Printable sheet of an itinerary (U13, R16). Imported by the sheet page only; every rule is scoped to
+   .print-sheet so the styles stay inert on the other screens once the chunk is loaded. Black and white legible. */
+
+@page {
+  size: A4;
+  margin: 10mm;
+}
+
+.print-sheet {
+  /* Same width on screen and on paper (A4 minus the margins), so the map is laid out once and never reflows. */
+  width: 190mm;
+  margin: 0 auto;
+  color: #000;
+  background: #fff;
+  font-size: 9pt;
+  line-height: 1.25;
+}
+
+.print-sheet h1 {
+  font-size: 13pt;
+  font-weight: 700;
+}
+
+.print-sheet h2 {
+  font-size: 11pt;
+  font-weight: 700;
+  margin: 3mm 0 1.5mm;
+}
+
+.print-sheet .sheet-map {
+  height: 72mm;
+  width: 100%;
+  border: 0.3mm solid #000;
+}
+
+.print-sheet .sheet-table {
+  width: 100%;
+  border-collapse: collapse;
+  table-layout: fixed;
+}
+
+.print-sheet .sheet-table th,
+.print-sheet .sheet-table td {
+  border: 0.3mm solid #000;
+  padding: 0.8mm 1mm;
+  vertical-align: top;
+  text-align: left;
+}
+
+.print-sheet .sheet-table th {
+  font-size: 8pt;
+  font-weight: 700;
+}
+
+.print-sheet .sheet-table tbody tr {
+  break-inside: avoid;
+}
+
+.print-sheet .sheet-table thead {
+  display: table-header-group;
+}
+
+.print-sheet .num {
+  font-size: 11pt;
+  font-weight: 700;
+  text-align: center;
+}
+
+.print-sheet .small {
+  font-size: 7.5pt;
+}
+
+.print-sheet .choices {
+  display: flex;
+  flex-wrap: wrap;
+  column-gap: 4mm;
+  row-gap: 0.6mm;
+  font-size: 8pt;
+}
+
+.print-sheet .choice-group {
+  display: inline-flex;
+  gap: 1.6mm;
+}
+
+.print-sheet .choice {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.8mm;
+  white-space: nowrap;
+}
+
+.print-sheet .box {
+  display: inline-block;
+  width: 3mm;
+  height: 3mm;
+  border: 0.3mm solid #000;
+  flex-shrink: 0;
+}
+
+.print-sheet .write-lines {
+  display: flex;
+  gap: 2mm;
+  margin-top: 0.6mm;
+}
+
+.print-sheet .write-line {
+  display: block;
+  flex: 1;
+  border-bottom: 0.2mm dotted #000;
+  height: 4.2mm;
+  font-size: 7.5pt;
+}
+
+.print-sheet .write-line.dwelling {
+  flex: 0 0 34%;
+}
+
+.print-sheet .cheatsheets {
+  font-size: 8pt;
+  columns: 2;
+  column-gap: 6mm;
+}
+
+.print-sheet .cheatsheet-group {
+  break-inside: avoid;
+  margin-bottom: 2mm;
+}
+
+.print-sheet .cheatsheet-body {
+  white-space: pre-line;
+}
+
+@media print {
+  /* No admin navigation on paper. */
+  body:has(.print-sheet) header:has(> nav[aria-label="Navigation principale"]) {
+    display: none;
+  }
+
+  .print-sheet .no-print {
+    display: none;
+  }
+
+  .print-sheet {
+    margin: 0;
+    print-color-adjust: exact;
+    -webkit-print-color-adjust: exact;
+  }
+
+  .print-sheet .leaflet-control-container {
+    display: none;
+  }
+}

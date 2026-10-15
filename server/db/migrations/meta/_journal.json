@@ -1,0 +1,27 @@
+{
+  "version": "7",
+  "dialect": "sqlite",
+  "entries": [
+    {
+      "idx": 0,
+      "version": "6",
+      "when": 1791837994217,
+      "tag": "0000_free_martin_li",
+      "breakpoints": true
+    },
+    {
+      "idx": 1,
+      "version": "6",
+      "when": 1791839807428,
+      "tag": "0001_real_madelyne_pryor",
+      "breakpoints": true
+    },
+    {
+      "idx": 2,
+      "version": "6",
+      "when": 1791922734760,
+      "tag": "0002_curly_veda",
+      "breakpoints": true
+    }
+  ]
+}

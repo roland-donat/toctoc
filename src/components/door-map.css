@@ -1,0 +1,25 @@
+@import "leaflet/dist/leaflet.css";
+
+.door-map {
+  height: 100%;
+  width: 100%;
+  background: #eef0f2;
+}
+
+/* Leaflet sets its own className on divIcon wrappers; keep them transparent. */
+.door-square-icon {
+  background: transparent;
+  border: none;
+}
+
+/* Size is set inline: it follows the number of electors. */
+.door-square {
+  box-sizing: border-box;
+  display: block;
+  border: 1.5px solid #ffffff;
+  box-shadow: 0 0 0 0.5px rgba(17, 24, 39, 0.45);
+}
+
+.door-square-selected {
+  border: 3px solid #111827;
+}

@@ -1,0 +1,13 @@
+#!/usr/bin/env bash
+# Redeploys TOCTOC from the bundle staged by the administrator (bin/toctoc-deploy). Installed root-owned in
+# /usr/local/sbin by deploy/install-server.sh, and allowed without password to the administrator account by
+# /etc/sudoers.d/toctoc, without any argument: domain, backup key and staging directory come from
+# /etc/toctoc/deploy.conf, written by the installer. The installer itself runs from a fresh clone of the bundle.
+set -euo pipefail
+[[ $# -eq 0 ]] || { echo "usage: sudo toctoc-deploy (no argument)" >&2; exit 2; }
+# shellcheck source=/dev/null
+source /etc/toctoc/deploy.conf
+TMP="$(mktemp -d)"
+trap 'rm -rf "$TMP"' EXIT
+git clone --quiet --branch main "$STAGING/toctoc.bundle" "$TMP/toctoc"
+bash "$TMP/toctoc/deploy/install-server.sh" --domain "$DOMAIN" --recipient "$RECIPIENT" --staging "$STAGING"

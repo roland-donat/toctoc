@@ -1,0 +1,24 @@
+# vroom-express configuration for TOCTOC (KTD1). The application always sends its own foot
+# duration matrix (matrices.foot.durations); the osrm entry below is used only when a request
+# has no matrix. Mounted read-only at /conf/config.yml by deploy/docker-compose.routing.yml.
+cliArgs:
+  geometry: false
+  planmode: false
+  threads: 4
+  explore: 5
+  limit: '20mb' # a 1000 x 1000 duration matrix is about 6 MB of JSON
+  logdir: '/..'
+  logsize: '100M'
+  maxlocations: 1000
+  maxvehicles: 10
+  override: true
+  path: ''
+  port: 3000
+  router: 'osrm'
+  timeout: 60000
+  baseurl: '/'
+routingServers:
+  osrm:
+    foot:
+      host: 'osrm'
+      port: '5000'

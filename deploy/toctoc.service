@@ -1,0 +1,54 @@
+[Unit]
+Description=TOCTOC, application militante de porte-à-porte
+After=network-online.target toctoc-egress.service
+Wants=network-online.target
+# Never runs without the egress containment (no access to the home network nor to the other local services).
+Requires=toctoc-egress.service
+
+[Service]
+Type=simple
+User=toctoc
+Group=toctoc
+WorkingDirectory=/opt/toctoc
+Environment=NODE_ENV=production
+Environment=TOCTOC_CONFIG=/etc/toctoc/config.json
+Environment=TOCTOC_ENV_FILE=/etc/toctoc/toctoc.env
+ExecStart=/opt/toctoc/node_modules/.bin/tsx server/index.ts
+Restart=on-failure
+RestartSec=5
+UMask=0077
+
+# Hardening: the service only writes its data and backup directories, holds no capability, sees no other process
+# and no device, and can only open network sockets (egress itself is contained by toctoc-egress.service).
+NoNewPrivileges=true
+CapabilityBoundingSet=
+AmbientCapabilities=
+ProtectProc=invisible
+ProcSubset=pid
+ProtectHostname=true
+ProtectClock=true
+ProtectKernelLogs=true
+RestrictNamespaces=true
+RestrictRealtime=true
+RestrictAddressFamilies=AF_INET AF_INET6 AF_UNIX
+SystemCallArchitectures=native
+SystemCallFilter=@system-service
+SystemCallFilter=~@privileged @resources
+SystemCallErrorNumber=EPERM
+RemoveIPC=true
+# A runaway request ends the service (restarted), never the machine.
+MemoryMax=1G
+TasksMax=64
+ProtectSystem=strict
+ProtectHome=true
+PrivateTmp=true
+PrivateDevices=true
+ProtectKernelTunables=true
+ProtectKernelModules=true
+ProtectControlGroups=true
+RestrictSUIDSGID=true
+LockPersonality=true
+ReadWritePaths=/var/lib/toctoc
+
+[Install]
+WantedBy=multi-user.target

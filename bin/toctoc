@@ -1,0 +1,5 @@
+#!/usr/bin/env bash
+# TOCTOC administration entry point (see server/cli.ts).
+set -euo pipefail
+ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+exec "$ROOT/node_modules/.bin/tsx" "$ROOT/server/cli.ts" "$@"
