@@ -21,7 +21,6 @@ function elector(overrides: Partial<ElectorFacts> = {}): ElectorFacts {
     bureau: "0001",
     streetKey: "rue de limur",
     streetName: "Rue de Limur",
-    birthPlace: "sene",
     t1: oui,
     t2: oui,
     ...overrides,

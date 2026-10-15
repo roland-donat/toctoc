@@ -6,8 +6,8 @@ import { CATEGORY_COLORS, type Category, type FollowUp, type MapAddress } from "
 import { doorPoints, radiusFor, VOTER_GROUP_COLORS, VOTER_GROUP_LABELS, VOTER_GROUPS, type DoorPoint } from "@/lib/door-symbols"
 import "./door-map.css"
 
-// Séné town hall area; the view fits the doors as soon as they load.
-const SENE_CENTER: L.LatLngTuple = [47.6195, -2.7375]
+// Mainland France until the doors of the commune load; the view then fits them.
+export const FRANCE_VIEW = { center: [46.6, 2.4] as L.LatLngTuple, zoom: 6 }
 
 const OSM_ATTRIBUTION = '&copy; <a href="https://www.openstreetmap.org/copyright">contributeurs OpenStreetMap</a>'
 
@@ -148,7 +148,7 @@ export function DoorMap({ addresses, fitKey, selectedId, onSelect }: DoorMapProp
   const selected = useMemo(() => addresses.find((a) => a.id === selectedId) ?? null, [addresses, selectedId])
 
   return (
-    <MapContainer center={SENE_CENTER} zoom={14} preferCanvas className="door-map" scrollWheelZoom>
+    <MapContainer center={FRANCE_VIEW.center} zoom={FRANCE_VIEW.zoom} preferCanvas className="door-map" scrollWheelZoom>
       <TileLayer
         url="https://tile.openstreetmap.org/{z}/{x}/{y}.png"
         attribution={OSM_ATTRIBUTION}

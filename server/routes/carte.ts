@@ -1,5 +1,5 @@
-// Map of every door of Séné (R7, R8): aggregated per address and filtered on the server (KTD14).
-// No filter on names, ever (CNIL); the birthplace is only usable through the KTD9 groups.
+// Map of every door of the commune (R7, R8): aggregated per address and filtered on the server (KTD14).
+// No filter on names, ever (CNIL), nor on the birthplace.
 import { and, eq, isNotNull, isNull } from "drizzle-orm"
 import { Hono } from "hono"
 import { z } from "zod"
@@ -7,7 +7,6 @@ import type { AppContext } from "../context.ts"
 import { AGE_BANDS, type AgeBand } from "../db/schema/cheatsheets.ts"
 import { addresses, electors, registrations } from "../db/schema/index.ts"
 import { ageAt, ageBand } from "../domain/age.ts"
-import { BIRTH_PLACE_GROUPS, birthPlaceGroup, type BirthPlaceGroup } from "../domain/birth-place.ts"
 import { CATEGORIES, FOLLOW_UPS, type Category, type FollowUp } from "../domain/qualification.ts"
 import type { VoterLevel } from "../domain/voter-level.ts"
 import { computeAddressStatuses } from "../services/address-status.ts"
@@ -25,7 +24,6 @@ const carteFiltersSchema = z
     category: multi(z.enum(CATEGORIES)),
     ageBand: multi(z.enum(AGE_BANDS)),
     sex: single(z.enum(["F", "M"])),
-    birthPlace: single(z.enum(BIRTH_PLACE_GROUPS)),
     street: single(z.string().min(1).max(200)),
     followUp: multi(z.enum(FOLLOW_UPS)),
   })
@@ -35,7 +33,6 @@ const carteFiltersSchema = z
     categories: q.category ?? [],
     ageBands: q.ageBand ?? [],
     sex: q.sex?.[0] ?? null,
-    birthPlace: q.birthPlace?.[0] ?? null,
     street: q.street?.[0] ?? null,
     followUps: q.followUp ?? [],
   }))
@@ -63,7 +60,6 @@ interface ElectorFacts {
   bureau: string
   sex: "F" | "M" | null
   band: AgeBand | null
-  birthPlace: BirthPlaceGroup
 }
 
 /** Distinct electors of the current list per address, with the dimensions the filters use. */
@@ -80,9 +76,6 @@ function electorsByAddress(ctx: AppContext): Map<string, Map<string, ElectorFact
       bureau: registrations.bureau,
       sex: electors.sex,
       birthDate: electors.birthDate,
-      birthCommuneCode: electors.birthCommuneCode,
-      birthDepartment: electors.birthDepartment,
-      birthCountry: electors.birthCountry,
     })
     .from(registrations)
     .innerJoin(electors, eq(electors.id, registrations.electorId))
@@ -102,21 +95,19 @@ function electorsByAddress(ctx: AppContext): Map<string, Map<string, ElectorFact
       bureau: r.bureau,
       sex: r.sex,
       band: level === "hors_cible" ? null : ageBand(ageAt(r.birthDate, now)),
-      birthPlace: birthPlaceGroup(r),
     })
   }
   return out
 }
 
 function hasElectorFilter(f: CarteFilters): boolean {
-  return f.bureau !== null || f.ageBands.length > 0 || f.sex !== null || f.birthPlace !== null
+  return f.bureau !== null || f.ageBands.length > 0 || f.sex !== null
 }
 
 function electorMatches(e: ElectorFacts, f: CarteFilters): boolean {
   if (f.bureau !== null && e.bureau !== f.bureau) return false
   if (f.ageBands.length > 0 && (e.band === null || !f.ageBands.includes(e.band))) return false
   if (f.sex !== null && e.sex !== f.sex) return false
-  if (f.birthPlace !== null && e.birthPlace !== f.birthPlace) return false
   return true
 }
 

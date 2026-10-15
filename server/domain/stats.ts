@@ -1,7 +1,6 @@
 // Statistics of the "Statistiques" tab (R10, R11, KTD9) and campaign indicators (Success Criteria). Pure:
 // the loader that gathers the facts of every elector of the current list lives in server/routes/stats.ts.
 import { AGE_BANDS, type AgeBand } from "../db/schema/cheatsheets.ts"
-import { BIRTH_PLACE_GROUPS, BIRTH_PLACE_LABELS, type BirthPlaceGroup } from "./birth-place.ts"
 import type { AddressKind, Category, Qualification } from "./qualification.ts"
 import type { VoteValue, VoterLevel } from "./voter-level.ts"
 
@@ -35,7 +34,6 @@ export interface ElectorFacts {
   /** Street of the registration address; null while the registration waits in the matching queue. */
   streetKey: string | null
   streetName: string | null
-  birthPlace: BirthPlaceGroup
   /** Null when the history has no row for that round. */
   t1: RoundFact | null
   t2: RoundFact | null
@@ -60,7 +58,7 @@ export interface ShareCell {
   share: Masked
 }
 
-const DIMENSIONS = ["age", "sexe", "bureau", "rue", "naissance"] as const
+const DIMENSIONS = ["age", "sexe", "bureau", "rue"] as const
 export type Dimension = (typeof DIMENSIONS)[number]
 
 export interface DimensionRow {
@@ -158,8 +156,6 @@ function groupOf(f: ElectorFacts, dimension: Dimension): GroupSpec {
       return f.streetKey === null
         ? { key: UNATTACHED_KEY, label: UNATTACHED_STREET_LABEL }
         : { key: f.streetKey, label: f.streetName ?? f.streetKey }
-    case "naissance":
-      return { key: f.birthPlace, label: BIRTH_PLACE_LABELS[f.birthPlace] }
   }
 }
 
@@ -176,8 +172,6 @@ function compareGroups(dimension: Dimension, a: GroupSpec, b: GroupSpec): number
       return rank([...AGE_BANDS, UNKNOWN_KEY], a.key) - rank([...AGE_BANDS, UNKNOWN_KEY], b.key)
     case "sexe":
       return rank(SEX_GROUPS.map((g) => g.key), a.key) - rank(SEX_GROUPS.map((g) => g.key), b.key)
-    case "naissance":
-      return rank(BIRTH_PLACE_GROUPS, a.key) - rank(BIRTH_PLACE_GROUPS, b.key)
     case "bureau":
       return FR.compare(a.key, b.key)
     case "rue":

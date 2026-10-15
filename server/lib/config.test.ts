@@ -8,9 +8,17 @@ const outside = () => mkdtempSync(join(tmpdir(), "toctoc-cfg-"))
 
 describe("parseConfig", () => {
   it("refuses a data_dir inside the repository with an explicit message", () => {
-    expect(() => parseConfig({ data_dir: "./data" }, { configDir: REPO_ROOT })).toThrowError(
+    expect(() => parseConfig({ commune_insee: "93014", data_dir: "./data" }, { configDir: REPO_ROOT })).toThrowError(
       /data_dir .* is inside the repository/,
     )
+  })
+
+  it("requires the INSEE code of the commune and refuses a postal code", () => {
+    expect(() => parseConfig({ data_dir: outside() }, { configDir: outside() })).toThrowError(/commune_insee is required/)
+    expect(() => parseConfig({ commune_insee: "9339", data_dir: outside() }, { configDir: outside() })).toThrowError(
+      /INSEE commune code/,
+    )
+    expect(parseConfig({ commune_insee: "93014", data_dir: outside() }, { configDir: outside() }).communeInsee).toBe("93014")
   })
 
   it("refuses a missing data_dir", () => {
@@ -20,13 +28,13 @@ describe("parseConfig", () => {
 
   it("refuses a backup_dir inside the repository", () => {
     expect(() =>
-      parseConfig({ data_dir: outside(), backup_dir: join(REPO_ROOT, "backups") }, { configDir: outside() }),
+      parseConfig({ commune_insee: "93014", data_dir: outside(), backup_dir: join(REPO_ROOT, "backups") }, { configDir: outside() }),
     ).toThrowError(/backup_dir .* is inside the repository/)
   })
 
   it("accepts a data_dir outside the repository and resolves it against the config file", () => {
     const dir = outside()
-    const config = parseConfig({ data_dir: "data", public_origin: "https://toctoc.example.fr" }, { configDir: dir })
+    const config = parseConfig({ commune_insee: "93014", data_dir: "data", public_origin: "https://toctoc.example.fr" }, { configDir: dir })
     expect(config.dataDir).toBe(join(dir, "data"))
     expect(config.backupDir).toBe(join(dir, "data", "backups"))
     expect(config.publicOrigin).toBe("https://toctoc.example.fr")
@@ -38,7 +46,7 @@ describe("loadConfig", () => {
   it("reads the file named by TOCTOC_CONFIG", () => {
     const dir = outside()
     const file = join(dir, "config.json")
-    writeFileSync(file, JSON.stringify({ data_dir: join(dir, "d"), server: { port: 4123 } }))
+    writeFileSync(file, JSON.stringify({ commune_insee: "93014", data_dir: join(dir, "d"), server: { port: 4123 } }))
     expect(loadConfig({ TOCTOC_CONFIG: file, TOCTOC_ENV_FILE: writeEnv(dir, "") }).server.port).toBe(4123)
   })
 
@@ -53,6 +61,7 @@ describe("loadConfig", () => {
     const dir = outside()
     const config = loadConfig({
       TOCTOC_ENV_FILE: writeEnv(dir, ""),
+      TOCTOC_COMMUNE_INSEE: "93014",
       TOCTOC_DATA_DIR: join(dir, "d"),
       TOCTOC_PORT: "4200",
       TOCTOC_PUBLIC_ORIGIN: "https://toctoc.example.org",
@@ -65,7 +74,7 @@ describe("loadConfig", () => {
   it("lets the environment override the file, and the process environment override the .env file", () => {
     const dir = outside()
     const file = join(dir, "config.json")
-    writeFileSync(file, JSON.stringify({ data_dir: join(dir, "d"), server: { port: 4123 } }))
+    writeFileSync(file, JSON.stringify({ commune_insee: "93014", data_dir: join(dir, "d"), server: { port: 4123 } }))
     const envFile = writeEnv(dir, "TOCTOC_PORT=4300\nTOCTOC_HOST=0.0.0.0\n")
     const config = loadConfig({ TOCTOC_CONFIG: file, TOCTOC_ENV_FILE: envFile, TOCTOC_HOST: "127.0.0.2" })
     expect(config.server).toEqual({ port: 4300, host: "127.0.0.2" })
@@ -73,7 +82,7 @@ describe("loadConfig", () => {
 
   it("refuses a malformed port", () => {
     const dir = outside()
-    expect(() => loadConfig({ TOCTOC_ENV_FILE: writeEnv(dir, ""), TOCTOC_DATA_DIR: dir, TOCTOC_PORT: "80a" })).toThrowError(
+    expect(() => loadConfig({ TOCTOC_ENV_FILE: writeEnv(dir, ""), TOCTOC_COMMUNE_INSEE: "93014", TOCTOC_DATA_DIR: dir, TOCTOC_PORT: "80a" })).toThrowError(
       /TOCTOC_PORT/,
     )
   })

@@ -88,18 +88,8 @@ describe("GET /api/carte", () => {
     expect(j.totals).toEqual({ doors: 1, electors: 1 })
   })
 
-  it("filters by birthplace group, counting an elector on two lists once", async () => {
-    const j = await carte("?birthPlace=etranger")
-    expect(ids(j)).toEqual([L("00010"), L("00022")]) // LIMA (both complementary lists), HOTEL
-    expect(j.totals).toEqual({ doors: 2, electors: 2 })
-  })
-
-  it("accepts only the birthplace groups of KTD9", async () => {
-    expect((await router.request("/?birthPlace=sene")).status).toBe(200)
-    for (const raw of ["Séné", "56243", "Portugal", "56"]) {
-      const res = await router.request(`/?birthPlace=${encodeURIComponent(raw)}`)
-      expect(res.status).toBe(400)
-    }
+  it("refuses a birthplace filter: the birthplace is not a filter", async () => {
+    expect((await router.request("/?birthPlace=etranger")).status).toBe(400)
   })
 
   it("filters by several categories, street and follow-up state", async () => {

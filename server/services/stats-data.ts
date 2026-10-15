@@ -6,7 +6,6 @@ import type { Db } from "../db/index.ts"
 import { addresses, electors, registrations, visits, voteHistory } from "../db/schema/index.ts"
 import { getSetting, setSetting } from "../db/settings.ts"
 import { ageAt, ageBand } from "../domain/age.ts"
-import { birthPlaceGroup } from "../domain/birth-place.ts"
 import { daysBetween, parisDate } from "../domain/qualification.ts"
 import {
   AGE_REFERENCE_DATE,
@@ -84,9 +83,6 @@ export function loadElectorFacts(db: Db): ElectorFacts[] {
       streetName: addresses.streetName,
       sex: electors.sex,
       birthDate: electors.birthDate,
-      birthCommuneCode: electors.birthCommuneCode,
-      birthDepartment: electors.birthDepartment,
-      birthCountry: electors.birthCountry,
     })
     .from(registrations)
     .innerJoin(electors, eq(electors.id, registrations.electorId))
@@ -124,7 +120,6 @@ export function loadElectorFacts(db: Db): ElectorFacts[] {
       bureau: r.bureau,
       streetKey: attached ? r.streetKey : null,
       streetName: attached ? r.streetName : null,
-      birthPlace: birthPlaceGroup(r),
       t1: history?.t1 ?? null,
       t2: history?.t2 ?? null,
     }

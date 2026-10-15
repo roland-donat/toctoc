@@ -4,13 +4,10 @@ import { Button } from "@/components/ui/button"
 import { DoorPointsLegend, DoorSymbol } from "@/components/door-map"
 import {
   AGE_BANDS,
-  BIRTH_PLACE_GROUPS,
-  BIRTH_PLACE_LABELS,
   CATEGORIES,
   CATEGORY_LABELS,
   FOLLOW_UPS,
   FOLLOW_UP_LABELS,
-  type BirthPlaceGroup,
   type MapFilters,
   type MapOptions,
 } from "@/lib/carte-api"
@@ -197,25 +194,6 @@ export function MapFiltersPanel({ filters, options, totals, onChange }: MapFilte
           </select>
         </label>
       </div>
-
-      <label className="block space-y-1.5 text-sm font-medium">
-        <span>Lieu de naissance</span>
-        <select
-          className={selectClass}
-          value={filters.birthPlace ?? ""}
-          onChange={(e) => {
-            const group = BIRTH_PLACE_GROUPS.find((g) => g === e.target.value)
-            set(() => ({ birthPlace: group as BirthPlaceGroup | undefined }))
-          }}
-        >
-          <option value="">Tous</option>
-          {BIRTH_PLACE_GROUPS.map((g) => (
-            <option key={g} value={g}>
-              {BIRTH_PLACE_LABELS[g]}
-            </option>
-          ))}
-        </select>
-      </label>
 
       <StreetPicker value={filters.street} streets={options?.streets ?? []} onChange={(street) => set(() => ({ street }))} />
     </div>

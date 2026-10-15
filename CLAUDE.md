@@ -1,6 +1,6 @@
 # TOCTOC - Application militante de porte-à-porte
 
-Outil du groupe Action Populaire de Séné pour préparer la présidentielle de 2027 : carte des portes qualifiées (votants, abstentionnistes, adresses sans inscrit), statistiques sur qui vote et qui s'abstient, itinéraires de porte-à-porte optimisés à pied, et suivi daté des visites.
+Application militante de porte-à-porte, installée ville par ville (un serveur par commune, réglée par `TOCTOC_COMMUNE_INSEE`) : carte des portes qualifiées (votants, abstentionnistes, adresses sans inscrit), statistiques sur qui vote et qui s'abstient, itinéraires de porte-à-porte optimisés à pied, et suivi daté des visites.
 
 ## Notes locales
 

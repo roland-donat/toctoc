@@ -10,4 +10,4 @@ source /etc/toctoc/deploy.conf
 TMP="$(mktemp -d)"
 trap 'rm -rf "$TMP"' EXIT
 git clone --quiet --branch main "$STAGING/toctoc.bundle" "$TMP/toctoc"
-bash "$TMP/toctoc/deploy/install-server.sh" --domain "$DOMAIN" --recipient "$RECIPIENT" --staging "$STAGING"
+bash "$TMP/toctoc/deploy/install-server.sh" --domain "$DOMAIN" --recipient "$RECIPIENT" --commune "${COMMUNE:-}" --staging "$STAGING"

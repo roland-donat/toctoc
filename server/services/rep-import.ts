@@ -13,7 +13,6 @@ import Papa from "papaparse"
 import type { AppContext } from "../context.ts"
 import { addresses, electors, imports, registrations } from "../db/schema/index.ts"
 import { matchKey, normalizeText } from "../domain/address-normalize.ts"
-import { SENE_INSEE } from "../domain/commune.ts"
 import type { ListType } from "../domain/voter-level.ts"
 import { logInfo } from "../lib/log.ts"
 import { computeAddressStatuses } from "./address-status.ts"
@@ -359,7 +358,7 @@ export function commitRepImport(ctx: AppContext, pending: PendingRepImport): Rep
         streetKey: plan.streetKey,
         lieuDit: null,
         postalCode: plan.postalCode,
-        inseeCode: SENE_INSEE,
+        inseeCode: ctx.config.communeInsee,
         matchKey: matchKey(null, null, plan.streetName),
         lat: plan.lat,
         lon: plan.lon,

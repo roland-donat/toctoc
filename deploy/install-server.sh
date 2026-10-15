@@ -5,18 +5,20 @@
 #
 #   <staging>/toctoc.bundle     git bundle of the main branch
 #   <staging>/data/             optional, first install only: database and import files to start from
-#   <staging>/routing/osrm/     optional: OSRM files of Séné, prepared by deploy/osrm/prepare-sene.sh
+#   <staging>/routing/osrm/     optional: OSRM files of the commune, prepared by deploy/osrm/prepare-commune.sh
 #
-# Usage: sudo bash install-server.sh --domain <name> --recipient <age1...> [--staging <dir>]
+# Usage: sudo bash install-server.sh --domain <name> --recipient <age1...> --commune <insee> [--staging <dir>]
 set -euo pipefail
 
 DOMAIN=""
 RECIPIENT=""
+COMMUNE=""
 STAGING=""
 while [[ $# -gt 0 ]]; do
   case "$1" in
     --domain) DOMAIN="$2"; shift 2 ;;
     --recipient) RECIPIENT="$2"; shift 2 ;;
+    --commune) COMMUNE="$2"; shift 2 ;;
     --staging) STAGING="$2"; shift 2 ;;
     *) echo "unknown argument: $1" >&2; exit 2 ;;
   esac
@@ -24,6 +26,11 @@ done
 [[ $EUID -eq 0 ]] || { echo "run as root (sudo)" >&2; exit 1; }
 [[ "$DOMAIN" =~ ^[a-z0-9]([a-z0-9-]*[a-z0-9])?(\.[a-z0-9]([a-z0-9-]*[a-z0-9])?)+$ ]] || { echo "--domain: a host name such as toctoc.example.org" >&2; exit 2; }
 [[ "$RECIPIENT" =~ ^age1[0-9a-z]+$ ]] || { echo "--recipient: the age public key (age1...) printed by bin/toctoc backup-key" >&2; exit 2; }
+# A server installed before the commune became a setting keeps the one of its configuration.
+if [[ -z "$COMMUNE" && -f /etc/toctoc/config.json ]]; then
+  COMMUNE="$(sed -n 's/.*"commune_insee": *"\([0-9AB]*\)".*/\1/p' /etc/toctoc/config.json)"
+fi
+[[ "$COMMUNE" =~ ^([0-9]{5}|2[AB][0-9]{3})$ ]] || { echo "--commune: the INSEE code of the commune, such as 93014 (not its postal code)" >&2; exit 2; }
 STAGING="${STAGING:-$(getent passwd "${SUDO_USER:-root}" | cut -d: -f6)/toctoc-staging}"
 [[ -f "$STAGING/toctoc.bundle" ]] || { echo "no $STAGING/toctoc.bundle" >&2; exit 1; }
 
@@ -87,6 +94,7 @@ step "Configuration"
 CONFIG="$ETC/config.json"
 cat > "$CONFIG.new" <<JSON
 {
+  "commune_insee": "$COMMUNE",
   "data_dir": "$STATE/data",
   "backup_dir": "$STATE/backups",
   "backup_recipient": "$RECIPIENT",
@@ -131,8 +139,16 @@ step "Routing (OSRM and VROOM, on 127.0.0.1 only)"
 if [[ -d "$STAGING/routing/osrm" ]]; then
   rsync -a --delete "$STAGING/routing/osrm/" "$STATE/routing/osrm/"
 fi
-if [[ -z "$(ls -A "$STATE/routing/osrm" 2>/dev/null)" ]]; then
-  "$SRC/deploy/osrm/prepare-sene.sh" "$STATE/routing"
+# OSRM files are served as toctoc.osrm.*: files prepared under another name by an earlier version are renamed.
+if ! compgen -G "$STATE/routing/osrm/toctoc.osrm*" >/dev/null; then
+  mapfile -t bases < <(find "$STATE/routing/osrm" -maxdepth 1 -name '*.osrm' -printf '%f\n' 2>/dev/null)
+  if [[ ${#bases[@]} -eq 1 ]]; then
+    old="${bases[0]%.osrm}"
+    for f in "$STATE/routing/osrm/$old".osrm*; do mv "$f" "${f/\/$old.osrm/\/toctoc.osrm}"; done
+  fi
+fi
+if ! compgen -G "$STATE/routing/osrm/toctoc.osrm*" >/dev/null; then
+  "$SRC/deploy/osrm/prepare-commune.sh" "$STATE/routing" "$COMMUNE"
 fi
 # The images come from ghcr.io; on a slow or flaky link a pull can be reset midway. Layers already fetched are kept,
 # so retrying resumes where the previous attempt stopped.
@@ -145,7 +161,8 @@ done
 TOCTOC_ROUTING_DATA="$STATE/routing" docker compose -f "$APP/deploy/docker-compose.routing.yml" up -d
 # The app reaches the routing services through their 127.0.0.1 ports, as it will in production.
 for _ in $(seq 1 60); do
-  curl -fsS "http://127.0.0.1:5000/nearest/v1/foot/-2.7375,47.6195" >/dev/null 2>&1 && break
+  # Any HTTP answer means osrm-routed has loaded its files, wherever the commune is.
+  [[ "$(curl -s -o /dev/null -w '%{http_code}' http://127.0.0.1:5000/ 2>/dev/null)" != 000 ]] && break
   sleep 2
 done
 
@@ -169,7 +186,7 @@ step "Administration commands"
 # password and without argument, so bin/toctoc-deploy and bin/toctoc-check-cyber need no interactive sudo.
 install -m 755 "$SRC/deploy/check-server.sh" /usr/local/sbin/toctoc-check
 install -m 755 "$SRC/deploy/system/toctoc-deploy" /usr/local/sbin/toctoc-deploy
-printf 'DOMAIN=%q\nRECIPIENT=%q\nSTAGING=%q\n' "$DOMAIN" "$RECIPIENT" "$STAGING" > "$ETC/deploy.conf.new"
+printf 'DOMAIN=%q\nRECIPIENT=%q\nCOMMUNE=%q\nSTAGING=%q\n' "$DOMAIN" "$RECIPIENT" "$COMMUNE" "$STAGING" > "$ETC/deploy.conf.new"
 install -m 644 "$ETC/deploy.conf.new" "$ETC/deploy.conf"
 rm -f "$ETC/deploy.conf.new"
 if [[ -n "${SUDO_USER:-}" && "$SUDO_USER" != root ]]; then

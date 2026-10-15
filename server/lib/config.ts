@@ -2,8 +2,11 @@ import { existsSync, readFileSync, realpathSync, statSync } from "node:fs"
 import { dirname, isAbsolute, relative, resolve } from "node:path"
 import { parseEnv } from "node:util"
 import { z } from "zod"
+import { INSEE_CODE_PATTERN } from "../domain/commune.ts"
 
 export interface AppConfig {
+  /** INSEE code of the one commune this server covers (not its postal code). */
+  communeInsee: string
   /** Directory holding the SQLite database and uploaded import files. Never inside the repository. */
   dataDir: string
   /** Only place where database copies may live (KTD15). Never inside the repository. */
@@ -26,6 +29,9 @@ export class ConfigError extends Error {
 export const REPO_ROOT = resolve(import.meta.dirname, "../..")
 
 const rawConfigSchema = z.object({
+  commune_insee: z
+    .string({ required_error: "commune_insee is required (INSEE code of the commune, e.g. 93014, not its postal code)" })
+    .regex(INSEE_CODE_PATTERN, "commune_insee must be an INSEE commune code such as 93014 (not a postal code)"),
   data_dir: z.string().min(1, "data_dir is required"),
   backup_dir: z.string().min(1).optional(),
   backup_recipient: z.string().regex(/^age1[0-9a-z]+$/, "backup_recipient must be an age public key (age1...)").optional(),
@@ -86,6 +92,7 @@ export function parseConfig(raw: unknown, opts: { configDir: string; repoRoot?: 
 
   const port = value.server?.port ?? 3000
   return {
+    communeInsee: value.commune_insee,
     dataDir,
     backupDir,
     backupRecipient: value.backup_recipient ?? null,
@@ -100,6 +107,7 @@ export function parseConfig(raw: unknown, opts: { configDir: string; repoRoot?: 
 
 /** Environment variables that override the config file, each with the file key it replaces. */
 const ENV_OVERRIDES = {
+  TOCTOC_COMMUNE_INSEE: ["commune_insee"],
   TOCTOC_DATA_DIR: ["data_dir"],
   TOCTOC_BACKUP_DIR: ["backup_dir"],
   TOCTOC_BACKUP_RECIPIENT: ["backup_recipient"],

@@ -21,7 +21,7 @@ import { terrainRoutes } from "./routes/terrain.ts"
 const PUBLIC_BODY_MAX = 64 * 1024
 /** Any other JSON body (a paper re-entry of 500 rows is about 1.3 MB). */
 const JSON_BODY_MAX = 4 * 1024 * 1024
-/** Uploaded electoral list or emargement (the Séné files are about 2 MB). */
+/** Uploaded electoral list or emargement (about 2 MB for a commune of 10,000 electors). */
 export const IMPORT_BODY_MAX = 25 * 1024 * 1024
 
 export interface CreateAppOptions {

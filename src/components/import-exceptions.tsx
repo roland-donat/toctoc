@@ -129,7 +129,7 @@ function QueueEntry({ item }: { item: QueueItem }) {
       <label htmlFor={inputId} className="sr-only">
         Rechercher une adresse
       </label>
-      <Input id={inputId} value={query} placeholder="Rechercher une adresse de Séné" onChange={(e) => setQuery(e.target.value)} />
+      <Input id={inputId} value={query} placeholder="Rechercher une adresse de la commune" onChange={(e) => setQuery(e.target.value)} />
       {results.data && results.data.items.length === 0 && (
         <p className="text-sm text-muted-foreground">Aucune adresse ne correspond.</p>
       )}

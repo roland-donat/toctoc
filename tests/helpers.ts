@@ -10,6 +10,8 @@ export const TEST_ORIGIN = "https://toctoc.test"
 export function testConfig(overrides: Partial<AppConfig> = {}): AppConfig {
   const dataDir = mkdtempSync(join(tmpdir(), "toctoc-test-"))
   return {
+    // The fixtures are addresses of Séné (public BAN data) with fictional people.
+    communeInsee: "56243",
     dataDir,
     backupDir: join(dataDir, "backups"),
     backupRecipient: null,

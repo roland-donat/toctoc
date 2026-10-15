@@ -83,7 +83,7 @@ function AdminLayout() {
       </div>
       <footer className="print:hidden mx-auto flex w-full max-w-6xl items-center gap-2 px-4 py-6 font-serif text-sm text-muted-foreground">
         <LaitFraise className="h-5 w-auto" />
-        Fait à Séné, à pas de tortue sagace. Une porte après l'autre.
+        Fait à pas de tortue sagace. Une porte après l'autre.
       </footer>
     </div>
   )

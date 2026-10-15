@@ -5,7 +5,6 @@ import { DoorMap } from "@/components/door-map"
 import { MapFiltersPanel } from "@/components/map-filters"
 import {
   AGE_BANDS,
-  BIRTH_PLACE_GROUPS,
   CATEGORIES,
   FOLLOW_UPS,
   fetchMap,
@@ -42,7 +41,6 @@ export const Route = createFileRoute("/_admin/carte")({
     category: pickMany(CATEGORIES, search.category),
     ageBand: pickMany(AGE_BANDS, search.ageBand),
     sex: pickOne(["F", "M"] as const, search.sex),
-    birthPlace: pickOne(BIRTH_PLACE_GROUPS, search.birthPlace),
     street: pickString(search.street),
     followUp: pickMany(FOLLOW_UPS, search.followUp),
     adresse: pickString(search.adresse),
@@ -113,7 +111,7 @@ function CartePage() {
 }
 
 const STEPS = [
-  { key: "ban", title: "Charger le référentiel d'adresses (BAN)", detail: "Les portes de Séné, sans aucune donnée personnelle." },
+  { key: "ban", title: "Charger le référentiel d'adresses (BAN)", detail: "Les portes de la commune, sans aucune donnée personnelle." },
   { key: "liste", title: "Importer la liste électorale", detail: "Les inscrits rattachés à leur adresse." },
   { key: "emargement", title: "Importer l'émargement 2026", detail: "La participation aux deux tours des municipales." },
 ] as const

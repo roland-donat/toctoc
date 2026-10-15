@@ -1,5 +1,5 @@
-// BAN address reference loader (U3, KTD3). Reads the departmental file adresses-56.csv(.gz),
-// keeps the addresses of Séné and upserts them by BAN id. Public data only: no personal data here.
+// BAN address reference loader (U3, KTD3). Reads the departmental file adresses-<department>.csv(.gz),
+// keeps the addresses of the commune and upserts them by BAN id. Public data only: no personal data here.
 import { randomUUID } from "node:crypto"
 import { createReadStream, createWriteStream } from "node:fs"
 import { mkdir, open, rename, rm } from "node:fs/promises"
@@ -13,11 +13,16 @@ import Papa from "papaparse"
 import type { AppContext } from "../context.ts"
 import { addresses, imports } from "../db/schema/index.ts"
 import { matchKey, normalizeRep, streetKey } from "../domain/address-normalize.ts"
-import { SENE_INSEE } from "../domain/commune.ts"
+import { departmentOf } from "../domain/commune.ts"
 import { logInfo } from "../lib/log.ts"
 
-export const BAN_URL = "https://adresse.data.gouv.fr/data/ban/adresses/latest/csv/adresses-56.csv.gz"
-const BAN_FILE_NAME = "adresses-56.csv.gz"
+/** Public departmental BAN file holding the commune. */
+export function banFileName(insee: string): string {
+  return `adresses-${departmentOf(insee)}.csv.gz`
+}
+export function banUrl(insee: string): string {
+  return `https://adresse.data.gouv.fr/data/ban/adresses/latest/csv/${banFileName(insee)}`
+}
 
 const REQUIRED_COLUMNS = ["id", "numero", "rep", "nom_voie", "code_postal", "code_insee", "lon", "lat", "nom_ld"] as const
 type BanColumn = (typeof REQUIRED_COLUMNS)[number]
@@ -36,7 +41,7 @@ export class BanDownloadError extends Error {
 }
 
 export interface BanLoadResult {
-  /** Séné rows read from the file. */
+  /** Rows of the commune read from the file. */
   loaded: number
   created: number
   updated: number
@@ -81,8 +86,8 @@ function parseNumber(raw: string): number | null {
   return Number.parseInt(value, 10)
 }
 
-/** Streams the file and returns the Séné rows; throws BanFormatError on a bad header, before any write. */
-async function readSeneRows(path: string): Promise<{ rows: Map<string, BanRow>; skipped: number }> {
+/** Streams the file and returns the rows of the commune; throws BanFormatError on a bad header, before any write. */
+async function readCommuneRows(path: string, insee: string): Promise<{ rows: Map<string, BanRow>; skipped: number }> {
   const gzip = await isGzip(path)
   const parser = Papa.parse(Papa.NODE_STREAM_INPUT, { delimiter: ";", header: false, skipEmptyLines: true })
   const file = createReadStream(path)
@@ -111,7 +116,7 @@ async function readSeneRows(path: string): Promise<{ rows: Map<string, BanRow>; 
       }
       const cols = columns
       const cell = (c: BanColumn): string => (cells[cols[c]] ?? "").trim()
-      if (cell("code_insee") !== SENE_INSEE) continue
+      if (cell("code_insee") !== insee) continue
       const id = cell("id")
       const lat = Number.parseFloat(cell("lat"))
       const lon = Number.parseFloat(cell("lon"))
@@ -144,7 +149,7 @@ async function readSeneRows(path: string): Promise<{ rows: Map<string, BanRow>; 
 /** Loads a BAN file (.csv or .csv.gz) into `addresses`, in one transaction. */
 export async function loadBanFile(ctx: AppContext, path: string): Promise<BanLoadResult> {
   const started = Date.now()
-  const { rows, skipped } = await readSeneRows(path)
+  const { rows, skipped } = await readCommuneRows(path, ctx.config.communeInsee)
   const now = ctx.now().getTime()
 
   const result = ctx.db.transaction((tx) => {
@@ -167,7 +172,7 @@ export async function loadBanFile(ctx: AppContext, path: string): Promise<BanLoa
         streetKey: streetKey(row.streetName),
         lieuDit: row.lieuDit,
         postalCode: row.postalCode,
-        inseeCode: SENE_INSEE,
+        inseeCode: ctx.config.communeInsee,
         matchKey: matchKey(row.number, row.rep, row.streetName),
         lat: row.lat,
         lon: row.lon,
@@ -218,11 +223,11 @@ export async function downloadBan(
 ): Promise<string> {
   const dir = join(ctx.config.dataDir, "sources")
   await mkdir(dir, { recursive: true })
-  const target = join(dir, BAN_FILE_NAME)
+  const target = join(dir, banFileName(ctx.config.communeInsee))
   const partial = `${target}.part`
   const signal = AbortSignal.timeout(options.timeoutMs ?? BAN_DOWNLOAD_TIMEOUT_MS)
   try {
-    const response = await fetchFn(BAN_URL, { signal })
+    const response = await fetchFn(banUrl(ctx.config.communeInsee), { signal })
     if (!response.ok || response.body === null) {
       throw new BanDownloadError(`BAN download failed with status ${response.status}`)
     }

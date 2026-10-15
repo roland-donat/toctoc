@@ -17,14 +17,13 @@ export interface ShareCell {
   share: Masked
 }
 
-export type Dimension = "age" | "sexe" | "bureau" | "rue" | "naissance"
+export type Dimension = "age" | "sexe" | "bureau" | "rue"
 
 export const DIMENSION_LABELS: { key: Dimension; label: string }[] = [
   { key: "age", label: "Tranche d'âge" },
   { key: "sexe", label: "Sexe" },
   { key: "bureau", label: "Bureau" },
   { key: "rue", label: "Rue" },
-  { key: "naissance", label: "Lieu de naissance" },
 ]
 
 export interface DimensionRow {

@@ -129,7 +129,7 @@ export function addressCategory({ excluded, levels, streetLevelElectorsOnStreet,
 
 const PARIS_DATE = new Intl.DateTimeFormat("en-CA", { timeZone: "Europe/Paris", year: "numeric", month: "2-digit", day: "2-digit" })
 
-/** Calendar date (ISO) in Séné of an instant. */
+/** Calendar date (ISO) in France of an instant. */
 export function parisDate(instant: Date): string {
   return PARIS_DATE.format(instant)
 }

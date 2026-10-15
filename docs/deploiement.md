@@ -1,6 +1,6 @@
 # Installer son serveur TOCTOC
 
-Procédure de mise en ligne, de redéploiement et de restauration de TOCTOC sur un serveur à soi, par exemple une machine du réseau local derrière une box internet. Elle a été éprouvée sur Arch Linux : le script d'installation utilise `pacman`, à adapter pour une autre distribution.
+Procédure de mise en ligne, de redéploiement et de restauration de TOCTOC sur un serveur à soi, par exemple une machine du réseau local derrière une box internet. Un serveur couvre une commune : chaque ville installe le sien. La procédure a été éprouvée sur Arch Linux : le script d'installation utilise `pacman`, à adapter pour une autre distribution.
 
 Il faut :
 
@@ -39,7 +39,7 @@ Le TLS se termine sur le serveur : aucun intermédiaire ne voit les données en 
    ```
 
    La commande écrit la clé privée dans le fichier (droits 600) et affiche la clé publique `age1...`. Garder ce fichier en lieu sûr, avec une copie hors de l'ordinateur : sans lui, aucune sauvegarde ne se restaure.
-4. Les données routières de la commune, préparées une fois (voir `docs/routing.md`).
+4. Le code INSEE de la commune, qui n'est pas son code postal : 93014 pour Clichy-sous-Bois (code postal 93390). Un serveur TOCTOC couvre une seule commune. L'installation en tire seule les adresses à charger et la zone du calcul d'itinéraire (`docs/routing.md`).
 
 ## Réglages : le fichier `.env`
 
@@ -51,6 +51,7 @@ cp .env.example .env && chmod 600 .env
 
 | Variable | Rôle |
 |---|---|
+| `TOCTOC_COMMUNE_INSEE` | code INSEE de la commune couverte, par exemple 93014 |
 | `TOCTOC_DEPLOY_HOST` | destination SSH du serveur (nom d'hôte ou alias de `~/.ssh/config`) |
 | `TOCTOC_DOMAIN` | nom public servi en HTTPS |
 | `TOCTOC_BACKUP_RECIPIENT` | clé publique de sauvegarde `age1...` |
@@ -82,7 +83,7 @@ Les migrations de base s'appliquent au démarrage de l'application. La base et l
 ssh -t mon-serveur 'sudo -u toctoc env TOCTOC_CONFIG=/etc/toctoc/config.json TOCTOC_ENV_FILE=/etc/toctoc/toctoc.env /opt/toctoc/bin/toctoc set-password'
 ```
 
-La première installation demande le mot de passe sudo du serveur. Elle pose aussi `/etc/sudoers.d/toctoc`, qui autorise ensuite le compte administrateur à lancer sans mot de passe, et sans argument, deux commandes appartenant à root : `/usr/local/sbin/toctoc-deploy` et `/usr/local/sbin/toctoc-check`. Les déploiements suivants ne demandent donc plus rien. Le domaine et la clé de sauvegarde sont alors relus dans `/etc/toctoc/deploy.conf` ; pour les changer, `TOCTOC_REINSTALL=1 bin/toctoc-deploy` repasse par le sudo interactif.
+La première installation demande le mot de passe sudo du serveur. Elle pose aussi `/etc/sudoers.d/toctoc`, qui autorise ensuite le compte administrateur à lancer sans mot de passe, et sans argument, deux commandes appartenant à root : `/usr/local/sbin/toctoc-deploy` et `/usr/local/sbin/toctoc-check`. Les déploiements suivants ne demandent donc plus rien. Le domaine, la clé de sauvegarde et la commune sont alors relus dans `/etc/toctoc/deploy.conf` ; pour les changer, `TOCTOC_REINSTALL=1 bin/toctoc-deploy` repasse par le sudo interactif.
 
 Contrepartie de ce confort : qui prend la main sur le compte administrateur du serveur devient root, puisque le déploiement exécute en root le paquet que ce compte dépose. Pour y renoncer, `sudo rm /etc/sudoers.d/toctoc` sur le serveur : chaque déploiement redemandera le mot de passe.
 

@@ -8,6 +8,7 @@ set -euo pipefail
 ROOT="$(cd "$(dirname "$(readlink -f "${BASH_SOURCE[0]}")")/.." && pwd)"
 source "$ROOT/deploy/deploy-env.sh"
 : "${TOCTOC_BACKUP_RECIPIENT:?set TOCTOC_BACKUP_RECIPIENT in $TOCTOC_REPO_ENV (see .env.example)}"
+: "${TOCTOC_COMMUNE_INSEE:?set TOCTOC_COMMUNE_INSEE in $TOCTOC_REPO_ENV (see .env.example)}"
 HOST="$TOCTOC_DEPLOY_HOST"
 
 COMMIT="$(git -C "$ROOT" rev-parse --short main)"
@@ -26,9 +27,9 @@ ssh "$HOST" 'chmod 600 ~/toctoc-staging/toctoc.bundle'
 # between the copy and the sudo.
 REMOTE="git clone -q --branch main ~$(ssh "$HOST" 'id -un')/toctoc-staging/toctoc.bundle /tmp/toctoc-install \
 && bash /tmp/toctoc-install/deploy/install-server.sh --domain $(printf %q "$TOCTOC_DOMAIN") \
---recipient $(printf %q "$TOCTOC_BACKUP_RECIPIENT"); status=\$?; rm -rf /tmp/toctoc-install; exit \$status"
+--recipient $(printf %q "$TOCTOC_BACKUP_RECIPIENT") --commune $(printf %q "$TOCTOC_COMMUNE_INSEE"); status=\$?; rm -rf /tmp/toctoc-install; exit \$status"
 # After the first installation, /etc/sudoers.d/toctoc allows the root-owned /usr/local/sbin/toctoc-deploy without
-# password; the first one, or a change of domain or backup key, goes through the interactive sudo.
+# password; the first one, or a change of domain, backup key or commune, goes through the interactive sudo.
 if [[ -z ${TOCTOC_REINSTALL:-} ]] && ssh "$HOST" 'sudo -n -l /usr/local/sbin/toctoc-deploy' >/dev/null 2>&1; then
   ssh "$HOST" 'sudo -n /usr/local/sbin/toctoc-deploy'
 else

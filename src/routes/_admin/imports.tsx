@@ -45,7 +45,7 @@ function ImportsPage() {
       <header>
         <h1 className="page-title">Imports</h1>
         <p className="mt-1 text-sm text-muted-foreground">
-          À faire dans l'ordre : les adresses de Séné, puis la liste électorale, puis l'émargement.
+          À faire dans l'ordre : les adresses de la commune, puis la liste électorale, puis l'émargement.
         </p>
       </header>
       <BanBlock />
@@ -73,7 +73,7 @@ function BanBlock() {
         <p className="text-sm">
           {status.data.lastImportedAt === null
             ? "Aucune adresse chargée."
-            : `${numberFormat.format(status.data.total)} adresses de Séné, chargées le ${localDateTimeFormat.format(status.data.lastImportedAt)}.`}
+            : `${numberFormat.format(status.data.total)} adresses de la commune, chargées le ${localDateTimeFormat.format(status.data.lastImportedAt)}.`}
           {status.data.retired > 0 && ` ${numberFormat.format(status.data.retired)} adresses retirées de la BAN.`}
         </p>
       )}

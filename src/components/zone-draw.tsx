@@ -1,12 +1,12 @@
 import { useEffect } from "react"
 import { CircleMarker, MapContainer, Marker, Polygon, Polyline, TileLayer, useMap, useMapEvents } from "react-leaflet"
 import L from "leaflet"
+import { FRANCE_VIEW } from "@/components/door-map"
 import { Button } from "@/components/ui/button"
 import { CATEGORY_COLORS, type MapAddress } from "@/lib/carte-api"
 import type { LatLon } from "@/lib/itineraires-api"
 import "./door-map.css"
 
-const SENE_CENTER: L.LatLngTuple = [47.6195, -2.7375]
 const OSM_ATTRIBUTION = '&copy; <a href="https://www.openstreetmap.org/copyright">contributeurs OpenStreetMap</a>'
 
 /** Clicks closer than this to the previous vertex are the two clicks of a double click, not new vertices. */
@@ -80,19 +80,19 @@ interface ZoneDrawMapProps {
  * then click to place the start point (by default the centre of the zone).
  */
 export function ZoneDrawMap({ value, onChange, drawPolygon, doors, highlighted }: ZoneDrawMapProps) {
-  const fitPoints = highlighted && highlighted.size > 0
-    ? doors.filter((d) => highlighted.has(d.id)).map((d): [number, number] => [d.lat, d.lon])
-    : []
+  // The doors of the chosen bureau when there is one, else every door of the commune.
+  const bureauFit = highlighted !== undefined && highlighted.size > 0
+  const fitPoints = (bureauFit ? doors.filter((d) => highlighted.has(d.id)) : doors).map((d): [number, number] => [d.lat, d.lon])
   return (
     <div className="relative h-full w-full">
-      <MapContainer center={SENE_CENTER} zoom={15} preferCanvas doubleClickZoom={false} className="door-map" scrollWheelZoom>
+      <MapContainer center={FRANCE_VIEW.center} zoom={FRANCE_VIEW.zoom} preferCanvas doubleClickZoom={false} className="door-map" scrollWheelZoom>
         <TileLayer
           url="https://tile.openstreetmap.org/{z}/{x}/{y}.png"
           attribution={OSM_ATTRIBUTION}
           maxZoom={19}
           referrerPolicy="strict-origin"
         />
-        <FitTo key={fitPoints.length === 0 ? "none" : "bureau"} points={fitPoints} />
+        <FitTo key={bureauFit ? "bureau" : "commune"} points={fitPoints} />
         {doors.map((d) => {
           const on = highlighted?.has(d.id) ?? false
           return (

@@ -1,8 +1,9 @@
 {
+  "commune_insee": "93014",
   "data_dir": "/var/lib/toctoc/data",
   "backup_dir": "/var/lib/toctoc/backups",
   "backup_recipient": "age1remplacer-par-la-cle-publique-de-sauvegarde",
-  "public_origin": "https://toctoc.example.fr",
+  "public_origin": "https://toctoc.example.org",
   "server": {
     "port": 3000,
     "host": "127.0.0.1"

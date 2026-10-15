@@ -20,9 +20,6 @@ export type FollowUp = (typeof FOLLOW_UPS)[number]
 export const AGE_BANDS = ["18-25", "26-40", "41-60", "61+"] as const
 export type AgeBand = (typeof AGE_BANDS)[number]
 
-export const BIRTH_PLACE_GROUPS = ["sene", "morbihan", "bretagne", "france", "etranger", "inconnu"] as const
-export type BirthPlaceGroup = (typeof BIRTH_PLACE_GROUPS)[number]
-
 export const CATEGORY_LABELS: Record<Category, string> = {
   abstention_forte: "Abstention forte",
   abstention_moyenne: "Abstention moyenne",
@@ -39,22 +36,12 @@ export const FOLLOW_UP_LABELS: Record<FollowUp, string> = {
   visitee: "Visitée il y a longtemps",
 }
 
-export const BIRTH_PLACE_LABELS: Record<BirthPlaceGroup, string> = {
-  sene: "Séné",
-  morbihan: "Reste du Morbihan",
-  bretagne: "Reste de la Bretagne",
-  france: "Reste de la France",
-  etranger: "Étranger",
-  inconnu: "Non renseigné",
-}
-
 /** Filters of R8, carried in the URL. Never a name. */
 export interface MapFilters {
   bureau?: string
   category?: Category[]
   ageBand?: AgeBand[]
   sex?: "F" | "M"
-  birthPlace?: BirthPlaceGroup
   street?: string
   followUp?: FollowUp[]
 }
@@ -162,7 +149,6 @@ export function mapQuery(filters: MapFilters): string {
   for (const c of filters.category ?? []) params.append("category", c)
   for (const b of filters.ageBand ?? []) params.append("ageBand", b)
   if (filters.sex) params.append("sex", filters.sex)
-  if (filters.birthPlace) params.append("birthPlace", filters.birthPlace)
   if (filters.street) params.append("street", filters.street)
   for (const f of filters.followUp ?? []) params.append("followUp", f)
   const text = params.toString()

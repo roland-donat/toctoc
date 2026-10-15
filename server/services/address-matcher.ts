@@ -65,7 +65,7 @@ function streetAddressId(key: string): string {
   return `street:${key}`
 }
 
-/** Loads the non-retired BAN numbers into memory (a few thousand rows for Séné). */
+/** Loads the non-retired BAN numbers into memory (a few thousand rows for a commune). */
 export function loadAddressIndex(db: Db): AddressIndex {
   const rows = db
     .select({

@@ -92,6 +92,8 @@ async function prepare() {
   writeFileSync(
     configPath,
     JSON.stringify({
+      // The fixtures are addresses of Séné (public BAN data) with fictional people.
+      commune_insee: "56243",
       data_dir: `${E2E_DIR}/data`,
       public_origin: "http://127.0.0.1:3100",
       server: { port: 3100, host: "127.0.0.1" },

@@ -4,7 +4,7 @@ import { gzipSync } from "node:zlib"
 import Papa from "papaparse"
 import { describe, expect, it } from "vitest"
 import { createTestContext } from "../../tests/helpers.ts"
-import { BAN_URL } from "../services/ban-loader.ts"
+import { banUrl } from "../services/ban-loader.ts"
 import type { GeocodeFetch } from "../services/geocode-fallback.ts"
 import { importRoutes } from "./imports.ts"
 
@@ -62,7 +62,7 @@ describe("BAN import routes", () => {
 
     expect(res.status).toBe(200)
     expect(await res.json()).toEqual({ loaded: 32, created: 32, updated: 0, retired: 0, total: 32 })
-    expect(requested).toEqual([BAN_URL])
+    expect(requested).toEqual([banUrl("56243")])
     expect(existsSync(join(ctx.config.dataDir, "sources", "adresses-56.csv.gz"))).toBe(true)
   })
 
