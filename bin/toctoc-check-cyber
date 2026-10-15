@@ -50,10 +50,18 @@ done
 echo "== Ports of the public address $IPV4"
 # Common service ports, TOCTOC's own internal ones included. Run from the server's own network, the probe goes
 # through the box (NAT loopback): close to an outside scan, not a substitute for one.
+GATEWAY="$(ip -4 route show default 2>/dev/null | awk '{print $3; exit}')"
 for port in 21 22 23 25 53 80 443 2019 3000 3010 3306 5000 5432 6379 8000 8080 8443 9000 11434; do
   if timeout 4 bash -c "</dev/tcp/$IPV4/$port" 2>/dev/null; then state=open; else state=closed; fi
   expected=closed; [[ $port == 80 || $port == 443 ]] && expected=open
-  if [[ $state == "$expected" ]]; then report OK "port $port $state"; else report FAIL "port $port $state (expected $expected)"; fi
+  if [[ $state == "$expected" ]]; then
+    report OK "port $port $state"
+  elif [[ $state == open && -n $GATEWAY ]] && timeout 4 bash -c "</dev/tcp/$GATEWAY/$port" 2>/dev/null; then
+    # From the local network the probe reaches the box itself (NAT loopback), which serves this port to the LAN.
+    note "port $port answered by the box itself ($GATEWAY): check it from outside (phone on 4G, online port test)"
+  else
+    report FAIL "port $port $state (expected $expected)"
+  fi
 done
 
 if [[ ${1:-} != --local-only ]]; then
