@@ -47,7 +47,7 @@ function AdminLayout() {
     <div className="flex min-h-screen flex-col">
       <header className="bg-primary text-primary-foreground [--tortue-hole:var(--color-primary)]">
         <nav aria-label="Navigation principale" className="mx-auto flex w-full max-w-6xl flex-wrap items-center gap-x-1 gap-y-2 px-4 py-3">
-          <Link to="/" className="mr-4 rounded-md focus-visible:ring-2 focus-visible:ring-lfi-jaune focus-visible:outline-none">
+          <Link to="/" className="mr-4 rounded-md focus-visible:ring-2 focus-visible:ring-brand-jaune focus-visible:outline-none">
             <Wordmark />
           </Link>
           {NAV_ITEMS.map((item) => {
@@ -76,7 +76,7 @@ function AdminLayout() {
             Se déconnecter
           </Button>
         </nav>
-        <div aria-hidden="true" className="h-1 bg-lfi-rouge" />
+        <div aria-hidden="true" className="h-1 bg-brand-rouge" />
       </header>
       <div className="flex-1">
         <Outlet />

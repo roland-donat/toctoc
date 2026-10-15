@@ -13,8 +13,7 @@ TOCTOC manipule des données nominatives (liste électorale, retours de visite).
 - Aucune donnée nominative dans le dépôt git : ni CSV, ni base SQLite, ni capture, ni fixture réelle. Les données vivent dans un dossier hors dépôt désigné par la configuration. Les tests utilisent des données fictives.
 - Aucune adresse ni aucun nom ne part vers un service tiers. Le calcul d'itinéraire se fait dans l'application (exigence R14 du plan). La localisation des adresses par la Géoplateforme, service public, est la seule exception admise.
 - Toute la préparation (carte, statistiques, fiches, itinéraires, suivi) est derrière la connexion administrateur. Seuls les liens d'itinéraire sont ouverts sans compte, et ils ne montrent que leurs propres portes.
-- Côté militant (lien, feuille imprimée) : anonymisé par défaut, jamais de lieu de naissance.
-- Aucun tri ni filtre fondé sur la consonance des noms (interdit par la CNIL).
+- Côté militant (lien, feuille imprimée) : anonymisé par défaut.
 - Les électeurs des listes complémentaires UE ne votent pas à la présidentielle : ils ne sont jamais des cibles.
 - Ne jamais afficher de données nominatives réelles dans une sortie de commande, un journal ou une réponse ; travailler sur des comptes et des formats.
 
@@ -23,7 +22,7 @@ TOCTOC manipule des données nominatives (liste électorale, retours de visite).
 - Code en anglais (identifiants, commentaires, messages de commit, messages d'erreur), libellés d'interface en français.
 - Types TypeScript stricts, pas de `any`.
 - Sauvegarde automatique à chaque action, pas de bouton « Enregistrer ».
-- Direction artistique : charte 2027 de la France insoumise (violet, rouge, crème, charbon ; Public Sans et Gowun Batang, auto-hébergées). Couleurs dans `src/index.css`, mascotte et clins d'œil dans `src/components/brand.tsx`. La feuille imprimée reste sobre.
+- Direction artistique : violet, rouge, crème, charbon ; Public Sans et Gowun Batang, auto-hébergées. Couleurs dans `src/index.css`, mascotte et clins d'œil dans `src/components/brand.tsx`. La feuille imprimée reste sobre.
 - Artefacts de debug sous `/tmp/`, jamais dans le dépôt. Maquettes dans `docs/mockups/`, gitignoré.
 
 ## Stack, commandes et structure

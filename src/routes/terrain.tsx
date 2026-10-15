@@ -252,7 +252,7 @@ function FieldQueueSession({ token, storageKey }: { token: string; storageKey: s
       <InstallHint />
 
       {doneCount === data.doors.length && data.doors.length > 0 && (
-        <p role="status" className="flex items-center gap-3 rounded-lg border-2 border-lfi-rose bg-white p-3 text-base font-semibold">
+        <p role="status" className="flex items-center gap-3 rounded-lg border-2 border-brand-rose bg-white p-3 text-base font-semibold">
           <LaitFraise className="h-10 w-auto shrink-0" />
           <span>
             Tournée bouclée, bravo ! Le lait fraise est mérité.

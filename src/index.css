@@ -6,15 +6,15 @@
 @custom-variant dark (&:is(.dark *));
 
 @theme inline {
-  /* Charte graphique de la France insoumise, palette 2027 (lafranceinsoumise.fr/charte-graphique). */
-  --color-lfi-violet: #4c0297;
-  --color-lfi-violet-vif: #7b13d6;
-  --color-lfi-rouge: #d1271c;
-  --color-lfi-creme: #fffcf4;
-  --color-lfi-charbon: #212320;
-  --color-lfi-rose: #ed5fb1;
-  --color-lfi-jaune: #f9c900;
-  --color-lfi-vert: #2e9959;
+  /* Brand palette: violet, red, cream and charcoal, with complementary hues. */
+  --color-brand-violet: #4c0297;
+  --color-brand-violet-vif: #7b13d6;
+  --color-brand-rouge: #d1271c;
+  --color-brand-creme: #fffcf4;
+  --color-brand-charbon: #212320;
+  --color-brand-rose: #ed5fb1;
+  --color-brand-jaune: #f9c900;
+  --color-brand-vert: #2e9959;
   --color-lait-fraise: #f7b6cf;
 
   --color-background: #fffcf4;
@@ -41,10 +41,10 @@
   --radius-lg: 0.75rem;
   --radius-xl: 1rem;
 
-  /* Titles in the black weight, as the charter asks (Public Sans is its free alternative to Config). */
+  /* Titles in the black weight of Public Sans. */
   --font-sans: "Public Sans Variable", system-ui, -apple-system, sans-serif;
   --font-display: "Public Sans Variable", system-ui, sans-serif;
-  /* The charter's free body face, kept for the few lines meant to be read as a voice, not as an interface. */
+  /* Serif face, kept for the few lines meant to be read as a voice, not as an interface. */
   --font-serif: "Gowun Batang", Georgia, serif;
 
   /* Custom colors for voter status */
@@ -68,7 +68,7 @@
   }
   ::selection {
     background: var(--color-lait-fraise);
-    color: var(--color-lfi-charbon);
+    color: var(--color-brand-charbon);
   }
 }
 
@@ -90,6 +90,6 @@
     height: 0.3rem;
     margin-top: 0.5rem;
     border-radius: 999px;
-    background: var(--color-lfi-rouge);
+    background: var(--color-brand-rouge);
   }
 }

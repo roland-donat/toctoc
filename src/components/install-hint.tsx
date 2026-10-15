@@ -53,7 +53,7 @@ export function InstallHint() {
   }
 
   return (
-    <aside aria-label="Installer l'application" className="flex items-start gap-3 rounded-lg border border-lfi-violet/30 bg-white p-3 text-sm">
+    <aside aria-label="Installer l'application" className="flex items-start gap-3 rounded-lg border border-brand-violet/30 bg-white p-3 text-sm">
       <p className="flex-1">
         {prompt ? (
           "Installez TOCTOC sur l'écran d'accueil : il s'ouvrira en plein écran sur votre tournée."

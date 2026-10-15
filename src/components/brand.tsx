@@ -8,8 +8,8 @@ const HOLE_FILL = { fill: HOLE }
 const HOLE_STROKE = { stroke: HOLE }
 
 /**
- * The mascot: a "tortue sagace", the nickname Jean-Luc Mélenchon gave himself in Nantes in January 2022, slow and
- * steady like a door-to-door round. Drawn in currentColor so it takes the color of its context.
+ * The mascot: a sagacious turtle ("tortue sagace"), slow and steady like a door-to-door round. Drawn in currentColor
+ * so it takes the color of its context.
  */
 export function Tortue({ className, ...props }: SVGProps<SVGSVGElement>) {
   return (
@@ -46,7 +46,7 @@ export function LaitFraise({ className, ...props }: SVGProps<SVGSVGElement>) {
   )
 }
 
-/** The wordmark: the mascot and the name, set in the black weight of the charter's title face. */
+/** The wordmark: the mascot and the name, set in the black weight of the title face. */
 export function Wordmark({ className }: { className?: string }) {
   return (
     <span className={cn("inline-flex items-center gap-2 font-display text-xl leading-none font-black tracking-tight uppercase", className)}>
