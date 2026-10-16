@@ -120,7 +120,7 @@ describe("adjusting doors", () => {
 })
 
 interface LinkInfo {
-  link: { issuedAt: number; expiresAt: number; revokedAt: number | null; state: string } | null
+  link: { issuedAt: number; expiresAt: number | null; revokedAt: number | null; state: string; url: string | null } | null
   showNames: boolean
   namesAvailable: boolean
 }
@@ -132,7 +132,7 @@ describe("field link of an itinerary", () => {
     return body.itinerary.id
   }
 
-  it("creates a link whose full URL carries the token in the fragment, shown once; only its state can be read back", async () => {
+  it("creates a link whose full URL carries the token in the fragment, shown again while it serves, gone once revoked", async () => {
     const id = await created()
     const before = (await (await router.request(`/${id}/lien`)).json()) as LinkInfo
     expect(before).toEqual({ link: null, showNames: false, namesAvailable: false })
@@ -143,11 +143,14 @@ describe("field link of an itinerary", () => {
     const match = /^https:\/\/toctoc\.test\/terrain#([A-Za-z0-9_-]{43})$/.exec(issued.url)
     expect(match).not.toBeNull()
     const token = match?.[1] ?? ""
-    expect(issued.link).toEqual({ issuedAt: ctx.now().getTime(), expiresAt: ctx.now().getTime() + 7 * 24 * 3600 * 1000, revokedAt: null, state: "actif" })
+    expect(issued.link).toEqual({ issuedAt: ctx.now().getTime(), expiresAt: null, revokedAt: null, state: "actif", url: issued.url })
 
-    const info = await (await router.request(`/${id}/lien`)).text()
-    expect(info).not.toContain(token)
-    expect((JSON.parse(info) as LinkInfo).link?.state).toBe("actif")
+    const info = (await (await router.request(`/${id}/lien`)).json()) as LinkInfo
+    expect(info.link).toMatchObject({ state: "actif", url: issued.url })
+    expect(info.link?.url).toContain(token)
+    await router.request(`/${id}/lien`, { method: "DELETE" })
+    const revoked = (await (await router.request(`/${id}/lien`)).json()) as LinkInfo
+    expect(revoked.link).toMatchObject({ state: "revoque", url: null })
   })
 
   it("revokes the link in one call", async () => {

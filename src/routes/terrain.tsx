@@ -268,7 +268,7 @@ function FieldQueueSession({ token, storageKey }: { token: string; storageKey: s
       ) : (
         readOver && (
           <p role="status" className="rounded-lg border-2 border-amber-700 bg-white p-3 text-base font-semibold text-amber-900">
-            Saisie seule : le lien a expiré, vos retours sont encore acceptés pendant quelques heures.
+            Saisie seule : la session est terminée, vos retours sont encore acceptés pendant quelques heures.
           </p>
         )
       )}

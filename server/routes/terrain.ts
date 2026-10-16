@@ -39,7 +39,8 @@ export interface FieldDoor {
 }
 
 export interface FieldLoop {
-  expiresAt: number
+  /** Null while the session runs: a link has no time limit. */
+  expiresAt: number | null
   start: { lat: number; lon: number }
   namesShown: boolean
   doors: FieldDoor[]

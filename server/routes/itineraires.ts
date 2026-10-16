@@ -7,6 +7,9 @@ import type { UnitView } from "../services/dwelling-units.ts"
 import {
   archiveSession,
   assertActiveSession,
+  assertEditableSession,
+  endSession,
+  reopenSession,
   deleteSession,
   doorLabel,
   listSessionEvents,
@@ -55,13 +58,25 @@ const addDoorSchema = z.object({ addressId: z.string().min(1).max(100) })
 
 const showNamesSchema = z.object({ showNames: z.boolean() }).strict()
 
-/** State of the current field link of an itinerary; the token itself is never readable back (KTD6). */
+/** Current field link of a session, with its address while it serves (16/10/2026, revises KTD6). */
 export interface FieldLinkView {
-  link: { issuedAt: number; expiresAt: number; revokedAt: number | null; state: FieldLinkState } | null
+  link: {
+    issuedAt: number
+    /** When it was closed by the end or the archiving of the session; null while it runs. */
+    expiresAt: number | null
+    revokedAt: number | null
+    state: FieldLinkState
+    /** Full address of the link while it serves; null once closed or revoked, or for a link issued before it was kept. */
+    url: string | null
+  } | null
   /** Per-itinerary permission (R25), off by default. */
   showNames: boolean
   /** The global switch is on "nominatif": without it the permission has no effect (KTD7). */
   namesAvailable: boolean
+}
+
+function fieldLinkUrl(ctx: AppContext, token: string): string {
+  return `${new URL(ctx.config.publicOrigin).origin}/terrain#${token}`
 }
 
 function linkView(ctx: AppContext, id: string): FieldLinkView | null {
@@ -70,7 +85,17 @@ function linkView(ctx: AppContext, id: string): FieldLinkView | null {
   const link = latestFieldLink(ctx, id)
   return {
     link: link
-      ? { issuedAt: link.issuedAt, expiresAt: link.expiresAt, revokedAt: link.revokedAt, state: fieldLinkState(link, ctx.now()) }
+      ? (() => {
+          const state = fieldLinkState(link, ctx.now())
+          const serving = state === "actif" || state === "grace"
+          return {
+            issuedAt: link.issuedAt,
+            expiresAt: link.expiresAt,
+            revokedAt: link.revokedAt,
+            state,
+            url: serving && link.token ? fieldLinkUrl(ctx, link.token) : null,
+          }
+        })()
       : null,
     showNames: it.showNames,
     namesAvailable: anonymizationMode(ctx.db) === "nominatif",
@@ -189,9 +214,9 @@ const STATUS: Record<ItineraryErrorCode, 404 | 409 | 422> = {
 }
 
 const sessionPatchSchema = z
-  .object({ name: z.string().max(120).nullable().optional(), archived: z.boolean().optional() })
+  .object({ name: z.string().max(120).nullable().optional(), archived: z.boolean().optional(), ended: z.boolean().optional() })
   .strict()
-  .refine((v) => v.name !== undefined || v.archived !== undefined)
+  .refine((v) => v.name !== undefined || v.archived !== undefined || v.ended !== undefined)
 
 /** Mounted at /api/itineraires. */
 export function itinerairesRoutes(ctx: AppContext, deps: RouteDeps = defaultRouteDeps(ctx)): Hono {
@@ -201,7 +226,7 @@ export function itinerairesRoutes(ctx: AppContext, deps: RouteDeps = defaultRout
     if (err instanceof RoutingUnavailableError) return c.json({ error: "routing_unavailable" }, 503)
     if (err instanceof NoCandidateError) return c.json({ error: "no_candidate" }, 422)
     if (err instanceof ItineraryError) return c.json({ error: err.code }, STATUS[err.code])
-    if (err instanceof SessionError) return c.json({ error: err.code }, err.code === "session_archived" ? 409 : 404)
+    if (err instanceof SessionError) return c.json({ error: err.code }, err.code === "itinerary_not_found" ? 404 : 409)
     throw err
   })
 
@@ -221,9 +246,11 @@ export function itinerairesRoutes(ctx: AppContext, deps: RouteDeps = defaultRout
     const parsed = sessionPatchSchema.safeParse(await readJson(c.req.raw))
     if (!parsed.success) return c.json({ error: "invalid_body" }, 400)
     const id = c.req.param("id")
-    const { name, archived } = parsed.data
+    const { name, archived, ended } = parsed.data
     if (archived === false) restoreSession(ctx, id)
+    if (ended === false) reopenSession(ctx, id)
     if (name !== undefined) renameSession(ctx, id, name)
+    if (ended === true) endSession(ctx, id)
     if (archived === true) archiveSession(ctx, id)
     return c.json(sessionSummary(ctx, id))
   })
@@ -302,11 +329,10 @@ export function itinerairesRoutes(ctx: AppContext, deps: RouteDeps = defaultRout
   app.post("/:id/lien", (c) => {
     const id = c.req.param("id")
     if (!linkView(ctx, id)) return c.json({ error: "itinerary_not_found" }, 404)
-    assertActiveSession(ctx, id)
+    assertEditableSession(ctx, id)
     const { token } = issueFieldLink(ctx, id)
     recordSessionEvent(ctx, id, "link_issued", "admin")
-    const url = `${new URL(ctx.config.publicOrigin).origin}/terrain#${token}`
-    return c.json({ url, ...linkView(ctx, id) }, 201)
+    return c.json({ url: fieldLinkUrl(ctx, token), ...linkView(ctx, id) }, 201)
   })
 
   app.delete("/:id/lien", (c) => {
@@ -321,7 +347,7 @@ export function itinerairesRoutes(ctx: AppContext, deps: RouteDeps = defaultRout
     const parsed = showNamesSchema.safeParse(await readJson(c.req.raw))
     if (!parsed.success) return c.json({ error: "invalid_body" }, 400)
     const id = c.req.param("id")
-    assertActiveSession(ctx, id)
+    assertEditableSession(ctx, id)
     const updated = ctx.db.update(itineraries).set({ showNames: parsed.data.showNames }).where(eq(itineraries.id, id)).returning().all()
     if (updated.length === 0) return c.json({ error: "itinerary_not_found" }, 404)
     recordSessionEvent(ctx, id, parsed.data.showNames ? "names_shown" : "names_hidden", "admin")
@@ -332,7 +358,7 @@ export function itinerairesRoutes(ctx: AppContext, deps: RouteDeps = defaultRout
     const parsed = addDoorSchema.safeParse(await readJson(c.req.raw))
     if (!parsed.success) return c.json({ error: "invalid_body" }, 400)
     const id = c.req.param("id")
-    assertActiveSession(ctx, id)
+    assertEditableSession(ctx, id)
     const detail = await addDoor(ctx, id, parsed.data.addressId, deps)
     recordSessionEvent(ctx, id, "door_added", "admin", doorLabel(ctx, parsed.data.addressId))
     return c.json(detail)
@@ -341,7 +367,7 @@ export function itinerairesRoutes(ctx: AppContext, deps: RouteDeps = defaultRout
   app.delete("/:id/portes/:addressId", async (c) => {
     const id = c.req.param("id")
     const addressId = c.req.param("addressId")
-    assertActiveSession(ctx, id)
+    assertEditableSession(ctx, id)
     const detail = await removeDoor(ctx, id, addressId, deps)
     recordSessionEvent(ctx, id, "door_removed", "admin", doorLabel(ctx, addressId))
     return c.json(detail)

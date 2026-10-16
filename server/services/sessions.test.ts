@@ -58,14 +58,15 @@ describe("sessions", () => {
     expect(listSessionEvents(ctx, "s1").map((e) => [e.kind, e.source])).toEqual([["feedback_recorded", "lien"]])
   })
 
-  it("renames, archives (link revoked, read-only, listed apart) and restores a session", async () => {
+  it("renames, archives (link closed, read-only, listed apart) and restores a session", async () => {
     const app = itinerairesRoutes(ctx, noRouting)
     issueFieldLink(ctx, "s1")
     expect((await app.request("/s1", { method: "PATCH", headers: json, body: JSON.stringify({ name: "  Samedi   matin " }) })).status).toBe(200)
     expect((await app.request("/s1", { method: "PATCH", headers: json, body: JSON.stringify({ archived: true }) })).status).toBe(200)
     expect(listSessions(ctx)).toEqual([])
-    expect(listSessions(ctx, { archived: true })).toMatchObject([{ id: "s1", name: "Samedi matin", link: { state: "revoque" } }])
-    expect(ctx.db.select().from(fieldLinks).where(eq(fieldLinks.itineraryId, "s1")).all().every((l) => l.revokedAt !== null)).toBe(true)
+    // Closed, not revoked: a phone still sends what it queued during 12 hours.
+    expect(listSessions(ctx, { archived: true })).toMatchObject([{ id: "s1", name: "Samedi matin", link: { state: "grace" } }])
+    expect(ctx.db.select().from(fieldLinks).where(eq(fieldLinks.itineraryId, "s1")).all().every((l) => l.expiresAt !== null)).toBe(true)
     // Read-only: no new link, no paper re-entry, no rename.
     expect((await app.request("/s1/lien", { method: "POST" })).status).toBe(409)
     const reentry = await app.request("/s1/ressaisie", {
@@ -94,5 +95,31 @@ describe("sessions", () => {
     const left = ctx.db.select({ addressId: visits.addressId, itineraryId: visits.itineraryId }).from(visits).all()
     expect(left).toEqual([{ addressId: "b", itineraryId: null }])
     expect((await app.request("/s1", { method: "DELETE" })).status).toBe(404)
+  })
+
+  it("ends a session: link closed, itinerary frozen, paper sheet still entered; reopening needs a new link", async () => {
+    const app = itinerairesRoutes(ctx, noRouting)
+    const { token } = issueFieldLink(ctx, "s1")
+    expect((await app.request("/s1", { method: "PATCH", headers: json, body: JSON.stringify({ ended: true }) })).status).toBe(200)
+    expect(listSessions(ctx)).toMatchObject([{ id: "s1", endedAt: NOW.getTime(), link: { state: "grace" } }])
+    // Frozen itinerary and link, open feedback.
+    expect((await app.request("/s1/lien", { method: "POST" })).status).toBe(409)
+    expect((await app.request("/s1/portes/a", { method: "DELETE" })).status).toBe(409)
+    const reentry = await app.request("/s1/ressaisie", {
+      method: "POST",
+      headers: json,
+      body: JSON.stringify({ visitDate: "2027-02-28", feedbacks: [{ id: uuid(), addressId: "a", contact: "absent" }] }),
+    })
+    expect(reentry.status).toBe(200)
+    // The phone that was offline still sends its feedback right after the end.
+    const late = await terrainRoutes(ctx).request("/retours", {
+      method: "POST",
+      headers: { ...json, "X-Toctoc-Token": token },
+      body: JSON.stringify({ id: uuid(), addressId: "b", contact: "absent" }),
+    })
+    expect(late.status).toBe(201)
+    expect((await app.request("/s1", { method: "PATCH", headers: json, body: JSON.stringify({ ended: false }) })).status).toBe(200)
+    expect((await app.request("/s1/lien", { method: "POST" })).status).toBe(201)
+    expect(listSessionEvents(ctx, "s1").map((e) => e.kind).slice(0, 3)).toEqual(["link_issued", "reopened", "feedback_recorded"])
   })
 })

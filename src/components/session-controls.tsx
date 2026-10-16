@@ -1,5 +1,5 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query"
-import { Archive, ArchiveRestore, History, Trash2 } from "lucide-react"
+import { Archive, ArchiveRestore, Flag, History, RotateCcw, Trash2 } from "lucide-react"
 import { useState } from "react"
 import { Button } from "@/components/ui/button"
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog"
@@ -15,8 +15,6 @@ import {
 } from "@/lib/itineraires-api"
 
 // Shared pieces of the Sessions TocToc screens (15/10/2026): progress, link state, history, archive and deletion.
-
-const DAY = new Intl.DateTimeFormat("fr-FR", { day: "numeric", month: "long", timeZone: "Europe/Paris" })
 
 /** Doors done over the doors of the session, as a bar and a count. */
 export function SessionProgress({ done, total }: { done: number; total: number }) {
@@ -44,11 +42,11 @@ export function linkStateShort(link: SessionSummary["link"]): string {
   if (!link) return "Aucun lien"
   switch (link.state) {
     case "actif":
-      return `Lien actif jusqu'au ${DAY.format(new Date(link.expiresAt))}`
+      return "Lien actif"
     case "grace":
-      return "Lien expiré, saisie encore acceptée"
+      return "Lien fermé, derniers envois acceptés"
     case "expire":
-      return "Lien expiré"
+      return "Lien fermé"
     case "revoque":
       return "Lien révoqué"
   }
@@ -90,6 +88,10 @@ export function eventText(e: SessionEvent): string {
       return "Session archivée"
     case "restored":
       return "Session restaurée"
+    case "ended":
+      return "Session terminée, lien fermé"
+    case "reopened":
+      return "Session rouverte"
   }
 }
 
@@ -127,6 +129,23 @@ export function SessionHistoryButton({ session }: { session: Pick<SessionSummary
         </DialogContent>
       </Dialog>
     </>
+  )
+}
+
+/** End (link closed, itinerary frozen) or reopen a session. */
+export function EndSessionButton({ session }: { session: Pick<SessionSummary, "id" | "endedAt" | "archivedAt"> }) {
+  const queryClient = useQueryClient()
+  const ended = session.endedAt !== null
+  const toggle = useMutation({
+    mutationFn: () => updateSession(session.id, { ended: !ended }),
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: ["itineraires"] }),
+  })
+  if (session.archivedAt !== null) return null
+  return (
+    <Button size="sm" variant="outline" className="gap-1" disabled={toggle.isPending} onClick={() => toggle.mutate()}>
+      {ended ? <RotateCcw className="h-4 w-4" /> : <Flag className="h-4 w-4" />}
+      {ended ? "Rouvrir" : "Terminer la session"}
+    </Button>
   )
 }
 

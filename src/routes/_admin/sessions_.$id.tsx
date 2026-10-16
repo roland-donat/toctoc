@@ -4,7 +4,14 @@ import { ArrowLeft, Copy, Printer, X } from "lucide-react"
 import { useState } from "react"
 import { toast } from "sonner"
 import { RouteMap } from "@/components/route-map"
-import { ArchiveSessionButton, DeleteSessionButton, linkStateShort, SessionHistoryButton, SessionProgress } from "@/components/session-controls"
+import {
+  ArchiveSessionButton,
+  DeleteSessionButton,
+  EndSessionButton,
+  linkStateShort,
+  SessionHistoryButton,
+  SessionProgress,
+} from "@/components/session-controls"
 import { SessionFeedback } from "@/components/session-feedback"
 import { useDebouncedSave } from "@/hooks/use-debounced-save"
 import { cn } from "@/lib/utils"
@@ -80,6 +87,8 @@ function SessionPage() {
   const session = summary.data
   if (!it || !session) return <p className="px-4 py-8 text-sm text-muted-foreground">Chargement…</p>
   const readOnly = session.archivedAt !== null
+  // An ended session keeps its feedback open, its itinerary and link frozen.
+  const ended = session.endedAt !== null
 
   const durationSeconds = it.durationMinutes * 60
   const over = it.totalSeconds > durationSeconds
@@ -100,9 +109,15 @@ function SessionPage() {
             {session.feedbackCount > 1 ? "retours" : "retour"} · {linkStateShort(session.link)}
           </span>
         </div>
+        {ended && !readOnly && (
+          <p className="rounded-md border p-2 text-sm" data-testid="session-ended">
+            Session terminée le {DATE_FORMAT.format(new Date(session.endedAt ?? 0))} : lien fermé, itinéraire figé. La feuille papier se
+            ressaisit encore dans l'onglet Retours.
+          </p>
+        )}
         {readOnly && (
           <p className="rounded-md border border-amber-300 bg-amber-50 p-2 text-sm" data-testid="session-archived">
-            Session archivée le {DATE_FORMAT.format(new Date(session.archivedAt ?? 0))} : consultation seule, lien terrain révoqué.
+            Session archivée le {DATE_FORMAT.format(new Date(session.archivedAt ?? 0))} : consultation seule, lien terrain fermé.
           </p>
         )}
         <div className="flex flex-wrap gap-2 pt-1">
@@ -112,6 +127,7 @@ function SessionPage() {
               Imprimer la feuille
             </Link>
           </Button>
+          <EndSessionButton session={session} />
           <ArchiveSessionButton session={session} />
           <DeleteSessionButton session={session} onDeleted={() => void navigate({ to: "/sessions" })} />
           <SessionHistoryButton session={session} />
@@ -148,6 +164,7 @@ function SessionPage() {
           id={id}
           it={it}
           readOnly={readOnly}
+          ended={ended}
           busy={busy}
           errorCode={errorCode}
           over={over}
@@ -167,6 +184,7 @@ function ItineraryTab({
   id,
   it,
   readOnly,
+  ended,
   busy,
   errorCode,
   over,
@@ -179,6 +197,7 @@ function ItineraryTab({
   id: string
   it: ItineraryDetail
   readOnly: boolean
+  ended: boolean
   busy: boolean
   errorCode: string | null
   over: boolean
@@ -196,7 +215,7 @@ function ItineraryTab({
         {formatDuration(it.serviceSeconds)}){over && " : la durée prévue est dépassée."}
       </p>
 
-      <FieldLinkPanel id={id} readOnly={readOnly} />
+      <FieldLinkPanel id={id} readOnly={readOnly} ended={ended} />
 
       {errorCode && (
         <p role="alert" className="rounded-md border border-destructive/40 bg-destructive/5 p-2 text-sm text-destructive">
@@ -206,12 +225,12 @@ function ItineraryTab({
 
       <div className="grid gap-6 lg:grid-cols-[1fr_24rem]">
         <div className="h-[60vh] min-h-[360px] overflow-hidden rounded-md border" data-testid="route-map">
-          <RouteMap itinerary={it} others={readOnly ? [] : others} busy={busy || readOnly} onRemove={onRemove} onAdd={onAdd} />
+          <RouteMap itinerary={it} others={readOnly || ended ? [] : others} busy={busy || readOnly || ended} onRemove={onRemove} onAdd={onAdd} />
         </div>
         <section aria-label="Portes dans l'ordre de visite" className="space-y-2">
           <h2 className="font-medium">Ordre de visite</h2>
           <p className="text-xs text-muted-foreground">
-            Départ et retour au point D.{!readOnly && " Pour ajouter une porte, cliquez sur un point de la carte ; l'ordre de visite est recalculé."}
+            Départ et retour au point D.{!readOnly && !ended && " Pour ajouter une porte, cliquez sur un point de la carte ; l'ordre de visite est recalculé."}
           </p>
           <ol className="space-y-2">
             {it.doors.map((d, i) => (
@@ -237,7 +256,7 @@ function ItineraryTab({
                     </Badge>
                   )}
                 </div>
-                {!readOnly && (
+                {!readOnly && !ended && (
                   <Button size="icon" variant="ghost" aria-label={`Retirer ${d.label}`} disabled={busy} onClick={() => onRemove(d.addressId)}>
                     <X className="h-4 w-4" />
                   </Button>
@@ -287,34 +306,34 @@ const GRACE_MS = 12 * 3600 * 1000
 function linkStateText(link: NonNullable<FieldLinkView["link"]>): string {
   switch (link.state) {
     case "actif":
-      return `Lien actif jusqu'au ${DAY_FORMAT.format(new Date(link.expiresAt))}.`
+      return "Lien actif, sans limite de durée : il sert jusqu'à la fin de la session ou jusqu'à sa révocation."
     case "grace":
-      return `Lien expiré, en délai de grâce : les retours sont encore acceptés jusqu'au ${DAY_FORMAT.format(new Date(link.expiresAt + GRACE_MS))}.`
+      return `Lien fermé avec la session : les retours restés en attente sur les téléphones sont encore acceptés jusqu'au ${DAY_FORMAT.format(new Date((link.expiresAt ?? 0) + GRACE_MS))}.`
     case "expire":
-      return "Lien expiré."
+      return "Lien fermé avec la session."
     case "revoque":
       return "Lien révoqué."
   }
 }
 
 /** Field link of the itinerary (U12): issue, copy once, revoke, names toggle. Each action is saved at once. */
-function FieldLinkPanel({ id, readOnly }: { id: string; readOnly: boolean }) {
+function FieldLinkPanel({ id, readOnly, ended }: { id: string; readOnly: boolean; ended: boolean }) {
   const queryClient = useQueryClient()
   const info = useQuery({ queryKey: fieldLinkKey(id), queryFn: () => fetchFieldLink(id) })
-  // The URL holds the token: kept in this component only, gone once the page is left.
-  const [url, setUrl] = useState<string | null>(null)
+  // Address just issued, shown at once; afterwards the server gives it back while the link serves.
+  const [issuedUrl, setIssuedUrl] = useState<string | null>(null)
   const onSaved = (view: FieldLinkView) => queryClient.setQueryData(fieldLinkKey(id), view)
   const create = useMutation({
     mutationFn: () => createFieldLink(id),
     onSuccess: ({ url: issued, ...view }) => {
-      setUrl(issued)
+      setIssuedUrl(issued)
       onSaved(view)
     },
   })
   const revoke = useMutation({
     mutationFn: () => revokeFieldLink(id),
     onSuccess: (view) => {
-      setUrl(null)
+      setIssuedUrl(null)
       onSaved(view)
     },
   })
@@ -322,6 +341,8 @@ function FieldLinkPanel({ id, readOnly }: { id: string; readOnly: boolean }) {
   const busy = create.isPending || revoke.isPending || names.isPending
   const view = info.data
   const live = view?.link && (view.link.state === "actif" || view.link.state === "grace")
+  const url = view?.link?.url ?? (live ? issuedUrl : null)
+  const frozen = readOnly || ended
 
   async function copy(text: string) {
     try {
@@ -344,9 +365,7 @@ function FieldLinkPanel({ id, readOnly }: { id: string; readOnly: boolean }) {
       )}
       {url && (
         <div className="space-y-1">
-          <p className="text-xs text-muted-foreground">
-            Copiez ce lien maintenant et envoyez-le au binôme : il ne sera plus affiché ensuite.
-          </p>
+          <p className="text-xs text-muted-foreground">Lien à envoyer au binôme. Il reste affiché ici tant qu'il sert.</p>
           <div className="flex gap-2">
             <Input readOnly value={url} aria-label="Lien terrain" onFocus={(e) => e.currentTarget.select()} />
             <Button type="button" variant="outline" className="gap-1" onClick={() => void copy(url)}>
@@ -356,7 +375,11 @@ function FieldLinkPanel({ id, readOnly }: { id: string; readOnly: boolean }) {
           </div>
         </div>
       )}
-      <div className={cn("flex flex-wrap gap-2", readOnly && "hidden")}>
+      {view?.link && live && !url && (
+        <p className="text-sm text-muted-foreground">Ce lien a été créé avant qu'ils restent affichés : recréez-le pour pouvoir le copier.</p>
+      )}
+      {ended && !readOnly && <p className="text-sm text-muted-foreground">Session terminée : rouvrez-la pour créer un nouveau lien.</p>}
+      <div className={cn("flex flex-wrap gap-2", frozen && "hidden")}>
         <Button type="button" disabled={busy} onClick={() => create.mutate()}>
           {view?.link ? "Créer un nouveau lien terrain" : "Créer le lien terrain"}
         </Button>
@@ -376,7 +399,7 @@ function FieldLinkPanel({ id, readOnly }: { id: string; readOnly: boolean }) {
               type="checkbox"
               className="size-4"
               checked={view.showNames}
-              disabled={busy || readOnly || !view.namesAvailable}
+              disabled={busy || frozen || !view.namesAvailable}
               onChange={(e) => names.mutate(e.currentTarget.checked)}
             />
             Afficher les noms sur le lien

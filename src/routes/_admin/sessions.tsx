@@ -3,7 +3,15 @@ import { createFileRoute, Link } from "@tanstack/react-router"
 import { Plus } from "lucide-react"
 import { useState } from "react"
 import { NewSession } from "@/components/new-session"
-import { ArchiveSessionButton, DeleteSessionButton, linkStateShort, SessionHistoryButton, SessionProgress } from "@/components/session-controls"
+import {
+  ArchiveSessionButton,
+  DeleteSessionButton,
+  EndSessionButton,
+  linkStateShort,
+  SessionHistoryButton,
+  SessionProgress,
+} from "@/components/session-controls"
+import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import { parisDateTimeFormat } from "@/lib/format"
 import { fetchSessions, formatDuration, sessionsKey, sessionTitle } from "@/lib/itineraires-api"
@@ -81,6 +89,11 @@ function SessionsPage() {
                   <Link to="/sessions/$id" params={{ id: s.id }} className="font-semibold underline-offset-4 hover:underline">
                     {sessionTitle(s)}
                   </Link>
+                  {s.endedAt !== null && (
+                    <Badge variant="outline" className="ml-2">
+                      Terminée
+                    </Badge>
+                  )}
                   <span className="block text-xs text-muted-foreground">
                     Créée le {parisDateTimeFormat.format(new Date(s.createdAt))} · {s.zoneLabel} · {formatDuration(s.durationMinutes * 60)}
                   </span>
@@ -94,6 +107,7 @@ function SessionsPage() {
                 <td className="py-2">
                   <div className="flex flex-wrap justify-end gap-1">
                     <SessionHistoryButton session={s} />
+                    <EndSessionButton session={s} />
                     <ArchiveSessionButton session={s} />
                     <DeleteSessionButton session={s} />
                   </div>

@@ -4,7 +4,7 @@ import { join, resolve } from "node:path"
 import { and, asc, eq, isNotNull } from "drizzle-orm"
 import { openDatabase, type Db } from "../server/db/index.ts"
 import { addresses, cheatsheets, fieldLinks, itineraries, itineraryDoors, registrations } from "../server/db/schema/index.ts"
-import { FIELD_LINK_VALIDITY_MS, sha256Hex } from "../server/lib/tokens.ts"
+import { sha256Hex } from "../server/lib/tokens.ts"
 import { currentRepImportId } from "../server/services/current-list.ts"
 import { loadConfig } from "../server/lib/config.ts"
 import { loadBanFile } from "../server/services/ban-loader.ts"
@@ -53,7 +53,7 @@ function seedFieldLink(db: Db, now: number): void {
       .run(),
   )
   db.insert(fieldLinks)
-    .values({ id: "e2e-lien", itineraryId: "e2e-itineraire", tokenHash: sha256Hex(E2E_FIELD_TOKEN), issuedAt: now, expiresAt: now + FIELD_LINK_VALIDITY_MS, revokedAt: null })
+    .values({ id: "e2e-lien", itineraryId: "e2e-itineraire", tokenHash: sha256Hex(E2E_FIELD_TOKEN), token: E2E_FIELD_TOKEN, issuedAt: now, expiresAt: null, revokedAt: null })
     .run()
   const bands = ["18-25", "26-40", "41-60", "61+"] as const
   bands.forEach((ageBand) =>
@@ -76,7 +76,7 @@ function seedFieldLink(db: Db, now: number): void {
     .values({ itineraryId: "e2e-immeuble", addressId: building.id, position: 0, serviceSeconds: 300, walkSecondsFromPrevious: 60, priority: 10, manual: false })
     .run()
   db.insert(fieldLinks)
-    .values({ id: "e2e-lien-immeuble", itineraryId: "e2e-immeuble", tokenHash: sha256Hex(E2E_BUILDING_TOKEN), issuedAt: now, expiresAt: now + FIELD_LINK_VALIDITY_MS, revokedAt: null })
+    .values({ id: "e2e-lien-immeuble", itineraryId: "e2e-immeuble", tokenHash: sha256Hex(E2E_BUILDING_TOKEN), token: E2E_BUILDING_TOKEN, issuedAt: now, expiresAt: null, revokedAt: null })
     .run()
   writeFileSync(E2E_BUILDING_TOKEN_FILE, E2E_BUILDING_TOKEN)
 

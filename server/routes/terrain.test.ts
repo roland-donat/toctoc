@@ -5,7 +5,7 @@ import { createTestContext } from "../../tests/helpers.ts"
 import type { AppContext } from "../context.ts"
 import { cheatsheets, electors, fieldLinks, itineraries, itineraryDoors, visits } from "../db/schema/index.ts"
 import { setAnonymizationMode } from "../domain/anonymize.ts"
-import { issueFieldLink, revokeFieldLinks } from "../lib/tokens.ts"
+import { closeFieldLinks, issueFieldLink, revokeFieldLinks } from "../lib/tokens.ts"
 import { P, seedAddresses } from "../services/route-builder.test-support.ts"
 import { recordVisit } from "../services/visits.ts"
 import { terrainRoutes } from "./terrain.ts"
@@ -141,7 +141,8 @@ describe("GET /api/terrain/itineraire", () => {
     expect(c?.cheatsheets.map((s) => s.id)).toEqual(["s-gen"])
     expect(body.doors.every((d) => d.voters.length === 0)).toBe(true)
     expect(body.start).toEqual({ lat: 47.6, lon: -2.75 })
-    expect(body.expiresAt).toBe(NOW.getTime() + 7 * DAY)
+    // No time limit while the session runs.
+    expect(body.expiresAt).toBeNull()
   })
 
   it("shows the names of targeted voters only when the global switch and the itinerary both allow it, never the birthplace", async () => {
@@ -343,9 +344,11 @@ describe("PATCH and DELETE /api/terrain/retours/:id", () => {
     const id = uuid()
     await post(token, { id, addressId: "a", contact: "absent" })
     expect((await send(token, "PATCH", id, { contact: null })).status).toBe(422)
-    setNow(new Date(NOW.getTime() + 7 * DAY + HOUR))
+    // The session ends: the link is closed, the phone may still send what it queued during 12 hours.
+    closeFieldLinks(ctx, "it-a")
+    setNow(new Date(NOW.getTime() + HOUR))
     expect((await send(token, "PATCH", id, { toRevisit: true })).status).toBe(200)
-    setNow(new Date(NOW.getTime() + 7 * DAY + 12 * HOUR))
+    setNow(new Date(NOW.getTime() + 12 * HOUR))
     expect((await send(token, "DELETE", id)).status).toBe(404)
     setNow(NOW)
     revokeFieldLinks(ctx, "it-a")
@@ -357,11 +360,15 @@ describe("PATCH and DELETE /api/terrain/retours/:id", () => {
 describe("link lifecycle", () => {
   it("during grace, reads answer 404 and a feedback is accepted; after grace, every request answers 404", async () => {
     const { token } = issueFieldLink(ctx, "it-a")
-    setNow(new Date(NOW.getTime() + 7 * DAY + HOUR))
+    // A week later the link still serves: it has no time limit while its session runs.
+    setNow(new Date(NOW.getTime() + 8 * DAY))
+    expect((await get(token)).status).toBe(200)
+    closeFieldLinks(ctx, "it-a")
+    setNow(new Date(NOW.getTime() + 8 * DAY + HOUR))
     expect((await get(token)).status).toBe(404)
     expect((await post(token, { id: uuid(), addressId: "a", contact: "absent" })).status).toBe(201)
 
-    setNow(new Date(NOW.getTime() + 7 * DAY + 12 * HOUR))
+    setNow(new Date(NOW.getTime() + 8 * DAY + 12 * HOUR))
     const read = await get(token)
     expect(read.status).toBe(404)
     expect(await read.json()).toEqual({ error: "not_found" })
@@ -370,13 +377,13 @@ describe("link lifecycle", () => {
     expect(await write.json()).toEqual({ error: "not_found" })
   })
 
-  it("stores only the hash of the token: the raw token is nowhere in the database", async () => {
+  it("keeps the token only on its link row (for the session page), never in the feedback or the history", async () => {
     const { token } = issueFieldLink(ctx, "it-a")
     await post(token, { id: uuid(), addressId: "a", contact: "absent" })
-    const tables = sqlite.prepare("SELECT name FROM sqlite_master WHERE type = 'table'").all() as { name: string }[]
+    const tables = sqlite.prepare("SELECT name FROM sqlite_master WHERE type = 'table' AND name <> 'field_links'").all() as { name: string }[]
     expect(tables.length).toBeGreaterThan(5)
     const dump = JSON.stringify(tables.map((t) => sqlite.prepare(`SELECT * FROM "${t.name}"`).all()))
-    expect(dump).toContain(ctx.db.select().from(fieldLinks).all()[0]?.tokenHash)
     expect(dump).not.toContain(token)
+    expect(ctx.db.select().from(fieldLinks).all()[0]?.token).toBe(token)
   })
 })

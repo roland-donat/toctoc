@@ -1,12 +1,13 @@
-// Field link tokens (KTD6, R15): 256 random bits in the URL fragment, sent to the API in a header; only the
-// SHA-256 is stored. Valid 7 days, revocable, feedback still accepted 12 h after expiry.
+// Field link tokens (KTD6, R15): 256 random bits in the URL fragment, sent to the API in a header and looked up by
+// their SHA-256. Since 16/10/2026 a link has no time limit and its token is kept, so the session page shows it
+// again: it serves until the session is ended or archived (feedback still accepted 12 h after that, for phones
+// that were offline) or until it is revoked by hand (refused at once).
 import { createHash, randomBytes } from "node:crypto"
-import { and, desc, eq, isNull, sql } from "drizzle-orm"
+import { and, desc, eq, gt, isNull, or, sql } from "drizzle-orm"
 import type { AppContext } from "../context.ts"
 import { fieldLinks } from "../db/schema/index.ts"
 
-export const FIELD_LINK_VALIDITY_MS = 7 * 24 * 3600 * 1000
-const FIELD_LINK_GRACE_MS = 12 * 3600 * 1000
+export const FIELD_LINK_GRACE_MS = 12 * 3600 * 1000
 /** Header carrying the token on every field request; the token never appears in an API URL. */
 export const FIELD_TOKEN_HEADER = "X-Toctoc-Token"
 
@@ -27,9 +28,28 @@ export function sha256Hex(token: string): string {
 export function fieldLinkState(link: Pick<FieldLink, "expiresAt" | "revokedAt">, now: Date): FieldLinkState {
   if (link.revokedAt !== null) return "revoque"
   const at = now.getTime()
-  if (at < link.expiresAt) return "actif"
+  if (link.expiresAt === null || at < link.expiresAt) return "actif"
   if (at < link.expiresAt + FIELD_LINK_GRACE_MS) return "grace"
   return "expire"
+}
+
+/**
+ * Closes the links of a session that ends or is archived: reads stop now, the feedback queued on phones is still
+ * taken during the grace period. Links already closed or revoked are left as they are.
+ */
+export function closeFieldLinks(ctx: AppContext, itineraryId: string): void {
+  const at = ctx.now().getTime()
+  ctx.db
+    .update(fieldLinks)
+    .set({ expiresAt: at })
+    .where(
+      and(
+        eq(fieldLinks.itineraryId, itineraryId),
+        isNull(fieldLinks.revokedAt),
+        or(isNull(fieldLinks.expiresAt), gt(fieldLinks.expiresAt, at)),
+      ),
+    )
+    .run()
 }
 
 /** Revokes every link of the itinerary that is not revoked yet. */
@@ -52,8 +72,9 @@ export function issueFieldLink(ctx: AppContext, itineraryId: string): { token: s
     id: crypto.randomUUID(),
     itineraryId,
     tokenHash: sha256Hex(token),
+    token,
     issuedAt,
-    expiresAt: issuedAt + FIELD_LINK_VALIDITY_MS,
+    expiresAt: null,
     revokedAt: null,
   }
   ctx.db.transaction((tx) => {

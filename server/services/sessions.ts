@@ -4,15 +4,15 @@ import { and, desc, eq, inArray, isNotNull, isNull, ne, or } from "drizzle-orm"
 import type { AppContext } from "../context.ts"
 import { addresses, itineraries, itineraryDoors, sessionEvents, visits } from "../db/schema/index.ts"
 import { parseZone, zoneLabel } from "./route-builder.ts"
-import { fieldLinkState, latestFieldLink, revokeFieldLinks, type FieldLinkState } from "../lib/tokens.ts"
+import { closeFieldLinks, fieldLinkState, latestFieldLink, type FieldLinkState } from "../lib/tokens.ts"
 import { addressLabel } from "./current-list.ts"
 
 export type SessionEventKind = (typeof sessionEvents.$inferSelect)["kind"]
 export type SessionEventSource = (typeof sessionEvents.$inferSelect)["source"]
 
 export class SessionError extends Error {
-  readonly code: "itinerary_not_found" | "session_archived"
-  constructor(code: "itinerary_not_found" | "session_archived") {
+  readonly code: "itinerary_not_found" | "session_archived" | "session_ended"
+  constructor(code: "itinerary_not_found" | "session_archived" | "session_ended") {
     super(code)
     this.name = "SessionError"
     this.code = code
@@ -30,10 +30,12 @@ export interface SessionSummary {
   /** Doors with at least one feedback of this session (cancellations aside). */
   doorsDone: number
   feedbackCount: number
-  link: { state: FieldLinkState; expiresAt: number } | null
+  link: { state: FieldLinkState } | null
   /** Latest change of the session (history), its creation at the least. */
   updatedAt: number
   archivedAt: number | null
+  /** Ended: link closed, itinerary frozen, feedback still entered and corrected. */
+  endedAt: number | null
 }
 
 export interface SessionEvent {
@@ -80,6 +82,32 @@ export function sessionSummary(ctx: AppContext, id: string): SessionSummary {
   const found = listSessions(ctx, { id })[0]
   if (!found) throw new SessionError("itinerary_not_found")
   return found
+}
+
+/** The session, refused when archived or ended: its itinerary and link are then frozen. */
+export function assertEditableSession(ctx: AppContext, id: string): void {
+  assertActiveSession(ctx, id)
+  const it = ctx.db.select({ endedAt: itineraries.endedAt }).from(itineraries).where(eq(itineraries.id, id)).get()
+  if (it?.endedAt != null) throw new SessionError("session_ended")
+}
+
+/** Ends a session: its link is closed (phones still send their queued feedback for 12 h), its itinerary frozen. */
+export function endSession(ctx: AppContext, id: string): void {
+  assertActiveSession(ctx, id)
+  ctx.db.transaction(() => {
+    closeFieldLinks(ctx, id)
+    ctx.db.update(itineraries).set({ endedAt: ctx.now().getTime() }).where(eq(itineraries.id, id)).run()
+    recordSessionEvent(ctx, id, "ended", "admin")
+  })
+}
+
+/** Reopens an ended session; its link stays closed, a new one is created when needed. */
+export function reopenSession(ctx: AppContext, id: string): void {
+  assertActiveSession(ctx, id)
+  const it = ctx.db.select({ endedAt: itineraries.endedAt }).from(itineraries).where(eq(itineraries.id, id)).get()
+  if (it?.endedAt == null) return
+  ctx.db.update(itineraries).set({ endedAt: null }).where(eq(itineraries.id, id)).run()
+  recordSessionEvent(ctx, id, "reopened", "admin")
 }
 
 /** Sessions, newest first: the active ones, or the archived ones (or the one asked for, whatever its state). */
@@ -145,9 +173,10 @@ export function listSessions(ctx: AppContext, options: { archived?: boolean; id?
       doorCount: doors.get(r.id)?.size ?? 0,
       doorsDone: done.get(r.id)?.size ?? 0,
       feedbackCount: feedbackCount.get(r.id) ?? 0,
-      link: link ? { state: fieldLinkState(link, now), expiresAt: link.expiresAt } : null,
+      link: link ? { state: fieldLinkState(link, now) } : null,
       updatedAt: Math.max(r.createdAt, lastEvent.get(r.id) ?? 0),
       archivedAt: r.archivedAt,
+      endedAt: r.endedAt,
     }
   })
 }
@@ -169,11 +198,11 @@ export function renameSession(ctx: AppContext, id: string, name: string | null):
   recordSessionEvent(ctx, id, "renamed", "admin", cleaned)
 }
 
-/** Archives: read-only, field link revoked (so its doors are no longer reserved for it). */
+/** Archives: read-only, field link closed (so its doors are no longer reserved for it). */
 export function archiveSession(ctx: AppContext, id: string): void {
   assertActiveSession(ctx, id)
   ctx.db.transaction(() => {
-    revokeFieldLinks(ctx, id)
+    closeFieldLinks(ctx, id)
     ctx.db.update(itineraries).set({ archivedAt: ctx.now().getTime() }).where(eq(itineraries.id, id)).run()
     recordSessionEvent(ctx, id, "archived", "admin")
   })

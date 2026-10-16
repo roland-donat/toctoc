@@ -1,6 +1,6 @@
 // Route generator (U11, R12 to R14): candidates of a zone, KTD8 priorities and door times, no-voter cap,
 // then the solver behind the single interface of KTD2, and the stored itinerary the administrator adjusts.
-import { and, asc, eq, gt, gte, inArray, isNotNull, isNull, notExists } from "drizzle-orm"
+import { and, asc, eq, gt, gte, inArray, isNotNull, isNull, notExists, or } from "drizzle-orm"
 import type { AppContext } from "../context.ts"
 import { addresses, fieldLinks, itineraries, itineraryDoors, registrations, visits } from "../db/schema/index.ts"
 import { loadParameters, type PriorityParameters } from "../domain/parameters.ts"
@@ -225,7 +225,15 @@ function reservedAddressIds(ctx: AppContext): Set<string> {
     .select({ addressId: itineraryDoors.addressId })
     .from(fieldLinks)
     .innerJoin(itineraryDoors, eq(itineraryDoors.itineraryId, fieldLinks.itineraryId))
-    .where(and(isNull(fieldLinks.revokedAt), gt(fieldLinks.issuedAt, since), notExists(fedSinceIssue)))
+    // A link closed by the end or the archiving of its session reserves nothing any more.
+    .where(
+      and(
+        isNull(fieldLinks.revokedAt),
+        or(isNull(fieldLinks.expiresAt), gt(fieldLinks.expiresAt, ctx.now().getTime())),
+        gt(fieldLinks.issuedAt, since),
+        notExists(fedSinceIssue),
+      ),
+    )
     .all()
   return new Set(doors.map((d) => d.addressId))
 }

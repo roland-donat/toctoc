@@ -61,9 +61,11 @@ export interface SessionSummary {
   doorCount: number
   doorsDone: number
   feedbackCount: number
-  link: { state: FieldLinkState; expiresAt: number } | null
+  link: { state: FieldLinkState } | null
   updatedAt: number
   archivedAt: number | null
+  /** Ended: link closed, itinerary frozen, feedback still entered and corrected. */
+  endedAt: number | null
 }
 
 export type SessionEventKind =
@@ -80,6 +82,8 @@ export type SessionEventKind =
   | "feedback_deleted"
   | "archived"
   | "restored"
+  | "ended"
+  | "reopened"
 
 export interface SessionEvent {
   id: number
@@ -120,7 +124,7 @@ export const fetchSessionSummary = (id: string) => fetchJSON<SessionSummary>(`/i
 export const fetchSessionHistory = (id: string) =>
   fetchJSON<{ events: SessionEvent[] }>(`/itineraires/${encodeURIComponent(id)}/historique`)
 
-export const updateSession = (id: string, patch: { name?: string | null; archived?: boolean }) =>
+export const updateSession = (id: string, patch: { name?: string | null; archived?: boolean; ended?: boolean }) =>
   fetchJSON<SessionSummary>(`/itineraires/${encodeURIComponent(id)}`, { method: "PATCH", body: JSON.stringify(patch) })
 
 export const deleteSession = (id: string, withFeedback: boolean) =>
@@ -154,7 +158,15 @@ export const removeItineraryDoor = (id: string, addressId: string) =>
 export type FieldLinkState = "actif" | "grace" | "expire" | "revoque"
 
 export interface FieldLinkView {
-  link: { issuedAt: number; expiresAt: number; revokedAt: number | null; state: FieldLinkState } | null
+  link: {
+    issuedAt: number
+    /** When the end or the archiving of the session closed it; null while it runs (no time limit). */
+    expiresAt: number | null
+    revokedAt: number | null
+    state: FieldLinkState
+    /** Address of the link while it serves; null once closed or revoked, or for a link issued before 16/10/2026. */
+    url: string | null
+  } | null
   showNames: boolean
   /** The global switch is on "nominatif". */
   namesAvailable: boolean
@@ -194,6 +206,8 @@ export function itineraryErrorMessage(code: string): string {
       return "Session introuvable."
     case "session_archived":
       return "Cette session est archivée : restaurez-la pour la modifier."
+    case "session_ended":
+      return "Cette session est terminée : rouvrez-la pour modifier son itinéraire ou son lien."
     default:
       return "Le calcul de l'itinéraire a échoué."
   }

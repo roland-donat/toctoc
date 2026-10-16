@@ -13,8 +13,10 @@ export const itineraries = sqliteTable("itineraries", {
   totalSeconds: integer("total_seconds").notNull(),
   /** Per-route permission to show names on the field side (R25), effective only when the global switch allows it (KTD7). */
   showNames: integer("show_names", { mode: "boolean" }).notNull().default(false),
-  /** Session archived (15/10/2026): read-only, link revoked, listed apart; null while active. */
+  /** Session archived (15/10/2026): read-only, link closed, listed apart; null while active. */
   archivedAt: integer("archived_at"),
+  /** Session ended (16/10/2026): link closed, itinerary frozen, feedback still entered and corrected. */
+  endedAt: integer("ended_at"),
 })
 
 /**
@@ -44,6 +46,8 @@ export const sessionEvents = sqliteTable(
         "feedback_deleted",
         "archived",
         "restored",
+        "ended",
+        "reopened",
       ],
     }).notNull(),
     source: text("source", { enum: ["admin", "lien", "feuille"] }).notNull(),
@@ -78,7 +82,17 @@ export const fieldLinks = sqliteTable("field_links", {
     .notNull()
     .references(() => itineraries.id, { onDelete: "cascade" }),
   tokenHash: text("token_hash").notNull().unique(),
+  /**
+   * The token itself, so the session page shows the link again (16/10/2026, revises KTD6). Null for a link issued
+   * before: it is recreated to be shown.
+   */
+  token: text("token"),
   issuedAt: integer("issued_at").notNull(),
-  expiresAt: integer("expires_at").notNull(),
+  /**
+   * When the link stopped serving reads: set when the session is ended or archived, null while it runs (no time
+   * limit since 16/10/2026). Feedback is still taken for 12 h after it, for phones that were offline.
+   */
+  expiresAt: integer("expires_at"),
+  /** Revoked by hand: refused at once, reads and writes. */
   revokedAt: integer("revoked_at"),
 })

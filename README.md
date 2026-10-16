@@ -19,7 +19,7 @@ TOCTOC traite des données personnelles : les noms et adresses de la liste élec
 - Le dépôt ne contient aucune donnée nominative : ni fichier, ni base, ni capture. Les tests n'utilisent que des personnes fictives. Le serveur refuse de démarrer si son dossier de données se trouve dans le dépôt.
 - Les données ne vivent que sur le serveur de l'organisateur. Aucun nom ni aucune adresse ne part vers un service tiers. Le calcul d'itinéraire se fait sur le serveur. La seule exception est la localisation des adresses par la Géoplateforme de l'IGN, un service public.
 - Toute la préparation (carte, statistiques, itinéraires, suivi) est derrière la connexion de l'administrateur.
-- Un lien terrain ne montre que les portes de sa tournée. Il est anonymisé par défaut. Il expire au bout de 7 jours et peut être révoqué à tout moment.
+- Un lien terrain ne montre que les portes de sa tournée. Il est anonymisé par défaut. Il sert jusqu'à ce que la session soit terminée ou archivée, ou qu'on le révoque.
 - Le téléphone du militant ne garde que les retours pas encore envoyés, effacés dès leur réception par le serveur, et le lien de la tournée en cours, oublié à son expiration. Aucune réponse du serveur n'y est conservée.
 - Les journaux ne contiennent aucune donnée personnelle, et les sauvegardes sont chiffrées pour une clé qui ne quitte pas l'ordinateur de l'administrateur.
 
