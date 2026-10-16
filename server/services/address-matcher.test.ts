@@ -95,6 +95,11 @@ describe("streetMainWord", () => {
     expect(sameStreet("Rue du Limur", "Rue de Limur")).toBe(true)
     expect(sameStreet("R. de Limur", "Rue de Limur")).toBe(true)
     expect(sameStreet("Rue de Kerfictif", "Impasse de Kerfictif")).toBe(false)
+    // The list writes the name without its type: the first word of the BAN name is no other street type.
+    expect(sameStreet("Clos du Poulfanc", "Rue du Clos du Poulfanc")).toBe(true)
+    expect(sameStreet("Rue du Clos du Poulfanc", "Clos du Poulfanc")).toBe(true)
+    expect(sameStreet("Impasse des Pins", "Rue des Pins")).toBe(false)
+    expect(sameStreet("Clos des Pins", "Rue du Clos du Poulfanc")).toBe(false)
     expect(sameStreet("Rue de Limur", "Rue de Kerfictif")).toBe(false)
   })
 })

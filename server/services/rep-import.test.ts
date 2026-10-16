@@ -8,7 +8,7 @@ import type { AppContext } from "../context.ts"
 import { addresses, electors, imports, registrations } from "../db/schema/index.ts"
 import { loadBanFile } from "./ban-loader.ts"
 import type { GeocodeFetch } from "./geocode-fallback.ts"
-import { commitRepImport, identityKey, parseRep, prepareRepImport, RepFormatError } from "./rep-import.ts"
+import { commitRepImport, identityKey, parseRep, prepareRepImport, recheckFallbackProposals, RepFormatError } from "./rep-import.ts"
 
 const FIXTURES = join(import.meta.dirname, "../../tests/fixtures")
 const REP_TEXT = readFileSync(join(FIXTURES, "rep-2026.csv"), "utf-8")
@@ -230,5 +230,32 @@ describe("prepareRepImport and commitRepImport", () => {
       [second.id, true],
     ])
     expect(ctx.db.select().from(addresses).where(eq(addresses.kind, "street")).all()).toHaveLength(1)
+  })
+})
+
+describe("recheckFallbackProposals", () => {
+  const unreachable: GeocodeFetch = async () => {
+    throw new Error("offline")
+  }
+  it("attaches a queued elector whose proposal passes the current check, and leaves the others", async () => {
+    const ctx = createTestContext().ctx
+    await loadBanFile(ctx, join(FIXTURES, "ban-sample.csv"))
+    commitRepImport(ctx, await prepareRepImport(ctx, readFileSync(join(FIXTURES, "rep-2026.csv")), { fetch: unreachable, sleep: async () => {} }))
+    const [kept, refused] = ctx.db
+      .select({ id: registrations.id, addressId: registrations.addressId })
+      .from(registrations)
+      .where(eq(registrations.matchStatus, "ban"))
+      .limit(2)
+      .all()
+    if (!kept?.addressId || !refused?.addressId) throw new Error("fixture registrations not found")
+    // Two registrations put back in the queue: one written without its street type ("Limur" for "Rue de Limur"),
+    // one under another street type.
+    ctx.db.update(registrations).set({ addressId: null, matchStatus: "pending", fallbackProposalId: kept.addressId, rawStreet: "Limur" }).where(eq(registrations.id, kept.id)).run()
+    ctx.db.update(registrations).set({ addressId: null, matchStatus: "pending", fallbackProposalId: refused.addressId, rawStreet: "Impasse de Limur" }).where(eq(registrations.id, refused.id)).run()
+    expect(recheckFallbackProposals(ctx)).toBe(1)
+    const after = new Map(ctx.db.select({ id: registrations.id, addressId: registrations.addressId, status: registrations.matchStatus }).from(registrations).all().map((r) => [r.id, r]))
+    expect(after.get(kept.id)).toMatchObject({ addressId: kept.addressId, status: "fallback" })
+    expect(after.get(refused.id)).toMatchObject({ addressId: null, status: "pending" })
+    expect(recheckFallbackProposals(ctx)).toBe(0)
   })
 })

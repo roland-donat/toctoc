@@ -8,17 +8,24 @@
 import { randomUUID } from "node:crypto"
 import { mkdir, writeFile } from "node:fs/promises"
 import { join } from "node:path"
-import { eq, isNull } from "drizzle-orm"
+import { and, eq, isNull } from "drizzle-orm"
 import Papa from "papaparse"
 import { syncListUnits } from "./dwelling-units.ts"
 import type { AppContext } from "../context.ts"
 import { addresses, electors, imports, registrations } from "../db/schema/index.ts"
-import { matchKey, normalizeText } from "../domain/address-normalize.ts"
+import { matchKey, normalizeText, splitNumber } from "../domain/address-normalize.ts"
 import type { ListType } from "../domain/voter-level.ts"
 import { logInfo } from "../lib/log.ts"
 import { computeAddressStatuses } from "./address-status.ts"
 import { currentRepImportId } from "./current-list.ts"
-import { loadAddressIndex, matchAddresses, type AddressMatch, type RepAddress, type StreetAddressPlan } from "./address-matcher.ts"
+import {
+  loadAddressIndex,
+  matchAddresses,
+  sameStreet,
+  type AddressMatch,
+  type RepAddress,
+  type StreetAddressPlan,
+} from "./address-matcher.ts"
 import type { GeocodeOptions } from "./geocode-fallback.ts"
 import { sanitizeField } from "./sanitize.ts"
 
@@ -517,4 +524,43 @@ export function commitRepImport(ctx: AppContext, pending: PendingRepImport): Rep
     ...(reimport === null ? {} : reimport),
   })
   return result
+}
+
+/**
+ * Reviews the queue against the current fallback check: a queued registration whose Géoplateforme proposal (same
+ * number, same repetition) now passes `sameStreet` is attached to it. Run at start-up, so a rule relaxed after the
+ * import (15/10/2026) applies to the list in force without importing it again. Idempotent.
+ */
+export function recheckFallbackProposals(ctx: AppContext): number {
+  const importId = currentRepImportId(ctx.db)
+  if (importId === null) return 0
+  const queued = ctx.db
+    .select({
+      id: registrations.id,
+      rawNumber: registrations.rawNumber,
+      rawStreet: registrations.rawStreet,
+      proposal: addresses,
+    })
+    .from(registrations)
+    .innerJoin(addresses, eq(addresses.id, registrations.fallbackProposalId))
+    .where(and(eq(registrations.importId, importId), isNull(registrations.addressId)))
+    .all()
+  let attached = 0
+  ctx.db.transaction((tx) => {
+    for (const q of queued) {
+      const { number, rep } = splitNumber(q.rawNumber ?? "")
+      const accepted =
+        q.proposal.kind === "number" &&
+        q.proposal.retiredAt === null &&
+        number !== null &&
+        q.proposal.number === number &&
+        q.proposal.rep === rep &&
+        sameStreet(q.rawStreet ?? "", q.proposal.streetName)
+      if (!accepted) continue
+      tx.update(registrations).set({ addressId: q.proposal.id, matchStatus: "fallback", fallbackProposalId: null }).where(eq(registrations.id, q.id)).run()
+      attached++
+    }
+  })
+  if (attached > 0) syncListUnits(ctx)
+  return attached
 }

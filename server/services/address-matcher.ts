@@ -160,11 +160,29 @@ export function streetMainWord(street: string): string {
   return all[all.length - 1] ?? ""
 }
 
+/** Words of a street name once its leading articles are dropped ("du clos du poulfanc" gives "clos du poulfanc"). */
+function withoutLeadingArticles(text: string): string {
+  const words = text.split(" ").filter((w) => w !== "")
+  while (words.length > 1 && ARTICLES.has(words[0] ?? "")) words.shift()
+  return words.join(" ")
+}
+
+/**
+ * One name is the whole other one behind a street type: "Clos du Poulfanc" in the list for "Rue du Clos du
+ * Poulfanc" in the BAN. The first word looks like a street type but is part of the name (15/10/2026).
+ */
+function nameBehindType(a: string, b: string): boolean {
+  const { type, rest } = splitStreetType(b)
+  return type !== null && rest !== "" && withoutLeadingArticles(rest) === withoutLeadingArticles(normalizeStreet(a))
+}
+
 /**
  * Same street for the KTD3 fallback check: same main word, and the same street type when both
- * names carry one ("12 impasse de X" is not "12 rue de X").
+ * names carry one ("12 impasse de X" is not "12 rue de X"), unless one name is the whole other one behind its
+ * type ("Clos du Poulfanc" and "Rue du Clos du Poulfanc").
  */
 export function sameStreet(a: string, b: string): boolean {
+  if (nameBehindType(a, b) || nameBehindType(b, a)) return true
   const ta = splitStreetType(a).type
   const tb = splitStreetType(b).type
   if (ta !== null && tb !== null && ta !== tb) return false
