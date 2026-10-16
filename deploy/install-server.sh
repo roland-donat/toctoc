@@ -153,7 +153,7 @@ fi
 # Shop fronts of the commune (commerce probable), from the same OpenStreetMap extract; optional, never blocking.
 if [[ -f "$STAGING/routing/pois/commerces-osm.json" ]]; then
   install -d -m 755 "$STATE/routing/pois"
-  install -m 644 "$STAGING/routing/pois/commerces-osm.json" "$STATE/routing/pois/commerces-osm.json"
+  install -p -m 644 "$STAGING/routing/pois/commerces-osm.json" "$STATE/routing/pois/commerces-osm.json"
 fi
 if [[ ! -f "$STATE/routing/pois/commerces-osm.json" ]]; then
   "$SRC/deploy/osrm/prepare-commune.sh" "$STATE/routing" "$COMMUNE" --pois-only \
@@ -161,7 +161,8 @@ if [[ ! -f "$STATE/routing/pois/commerces-osm.json" ]]; then
 fi
 if [[ -f "$STATE/routing/pois/commerces-osm.json" ]]; then
   install -d -o toctoc -g toctoc -m 700 "$STATE/data/sources"
-  install -o toctoc -g toctoc -m 640 "$STATE/routing/pois/commerces-osm.json" "$STATE/data/sources/commerces-osm.json"
+  # -p keeps the date of the file: the application reloads it at start-up only when it really changed.
+  install -p -o toctoc -g toctoc -m 640 "$STATE/routing/pois/commerces-osm.json" "$STATE/data/sources/commerces-osm.json"
 fi
 # The images come from ghcr.io; on a slow or flaky link a pull can be reset midway. Layers already fetched are kept,
 # so retrying resumes where the previous attempt stopped.

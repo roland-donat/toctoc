@@ -3,7 +3,8 @@ import { serve } from "@hono/node-server"
 import { createApp } from "./app.ts"
 import { openDatabase } from "./db/index.ts"
 import { ConfigError, loadConfig, REPO_ROOT } from "./lib/config.ts"
-import { logInfo } from "./lib/log.ts"
+import { logError, logInfo } from "./lib/log.ts"
+import { loadCommercesIfNewer } from "./services/commerces-loader.ts"
 import { syncListUnits } from "./services/dwelling-units.ts"
 
 function main() {
@@ -20,6 +21,11 @@ function main() {
   const { db } = openDatabase(resolve(config.dataDir, "toctoc.db"))
   // Dwellings of the list in force, for a base imported before they existed; idempotent.
   syncListUnits({ db, config, now: () => new Date() })
+  // Shop fronts extracted by the installation: loaded when the file is newer than the last load.
+  void loadCommercesIfNewer({ db, config, now: () => new Date() }).then(
+    (r) => r && logInfo("commerces_loaded", { total: r.total, attached: r.attached }),
+    (err: unknown) => logError("commerces_load_failed", err),
+  )
   const app = createApp(
     { db, config, now: () => new Date() },
     { distDir: process.env.NODE_ENV === "production" ? resolve(REPO_ROOT, "dist") : undefined },

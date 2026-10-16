@@ -6,7 +6,9 @@ import { matchKey } from "../domain/address-normalize.ts"
 import { adressesRoutes } from "../routes/adresses.ts"
 import { importRoutes } from "../routes/imports.ts"
 import { computeAddressStatuses } from "./address-status.ts"
-import { commercesStatus, loadCommerces, parseCommerces, type CommercePoi } from "./commerces-loader.ts"
+import { mkdirSync, utimesSync, writeFileSync } from "node:fs"
+import { dirname } from "node:path"
+import { commercesFilePath, commercesStatus, loadCommerces, loadCommercesIfNewer, parseCommerces, type CommercePoi } from "./commerces-loader.ts"
 
 // Two fictional doors 100 m apart on a public street; no elector anywhere, so both start "sans inscrit".
 const SHOP = "56243_0110_00004"
@@ -93,5 +95,19 @@ describe("commerces file", () => {
     const bad = new FormData()
     bad.append("file", new File(["[1]"], "c.json"))
     expect((await app.request("/commerces", { method: "POST", body: bad })).status).toBe(400)
+  })
+})
+
+describe("loadCommercesIfNewer", () => {
+  it("loads the dropped file once, and again only when it changes", async () => {
+    expect(await loadCommercesIfNewer(ctx)).toBeNull()
+    const path = commercesFilePath(ctx)
+    mkdirSync(dirname(path), { recursive: true })
+    writeFileSync(path, JSON.stringify([{ id: "n1", kind: "shop=bakery", lat: 47.6, lon: -2.7 }]))
+    utimesSync(path, new Date(0), new Date(ctx.now().getTime() - 60_000))
+    expect(await loadCommercesIfNewer(ctx)).toEqual({ total: 1, attached: 1 })
+    expect(await loadCommercesIfNewer(ctx)).toBeNull()
+    utimesSync(path, new Date(0), new Date(ctx.now().getTime() + 60_000))
+    expect(await loadCommercesIfNewer(ctx)).toEqual({ total: 1, attached: 1 })
   })
 })

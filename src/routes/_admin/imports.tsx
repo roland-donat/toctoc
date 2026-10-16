@@ -118,7 +118,8 @@ function CommercesBlock() {
       </h2>
       <p className="text-sm text-muted-foreground">
         Une adresse sans inscrit où OpenStreetMap recense une vitrine passe en « commerce probable », hors des itinéraires. Une
-        adresse avec des inscrits reste une cible. La fiche adresse permet de la rendre à « sans inscrit ».
+        adresse avec des inscrits reste une cible. La fiche adresse permet de la rendre à « sans inscrit ». Le fichier préparé par
+        l'installation est chargé tout seul au démarrage du serveur.
       </p>
       {s && (
         <p className="text-sm">

@@ -2,7 +2,7 @@
 // from the regional extract already used for routing, so the application never queries a third party for it.
 // Public data only: no personal data here.
 import { randomUUID } from "node:crypto"
-import { existsSync } from "node:fs"
+import { existsSync, statSync } from "node:fs"
 import { readFile } from "node:fs/promises"
 import { join } from "node:path"
 import { and, count, desc, eq, isNotNull, isNull } from "drizzle-orm"
@@ -120,6 +120,18 @@ export function loadCommerces(ctx: AppContext, pois: readonly CommercePoi[]): Co
 
 export async function loadCommercesFile(ctx: AppContext, path: string): Promise<CommercesLoadResult> {
   return loadCommerces(ctx, parseCommerces(await readFile(path, "utf-8")))
+}
+
+/**
+ * Loads the file the installation dropped when it is newer than the last load (start-up after a deployment).
+ * Returns the load result, or null when there was nothing new.
+ */
+export async function loadCommercesIfNewer(ctx: AppContext): Promise<CommercesLoadResult | null> {
+  const path = commercesFilePath(ctx)
+  if (!existsSync(path)) return null
+  const { loadedAt } = commercesStatus(ctx)
+  if (loadedAt !== null && statSync(path).mtimeMs <= loadedAt) return null
+  return loadCommercesFile(ctx, path)
 }
 
 export function commercesStatus(ctx: AppContext): CommercesStatus {
