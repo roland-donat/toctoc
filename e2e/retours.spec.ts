@@ -9,7 +9,7 @@ interface Listed {
 }
 
 test("a recorded feedback of an itinerary is corrected, then removed, from its re-entry screen", async ({ page, baseURL }) => {
-  await openAsAdmin(page, "/suivi")
+  await openAsAdmin(page, "/sessions")
   const api = (path: string, init: { method: string; data?: unknown }) =>
     page.request.fetch(`/api${path}`, { ...init, headers: { Origin: baseURL ?? "", "Content-Type": "application/json" } })
 
@@ -22,7 +22,7 @@ test("a recorded feedback of an itinerary is corrected, then removed, from its r
   })
   expect(recorded.status()).toBe(200)
 
-  await openAsAdmin(page, "/suivi?itineraire=e2e-itineraire")
+  await openAsAdmin(page, "/sessions/e2e-itineraire?onglet=retours")
   const third = page.getByTestId("paper-door").nth(2)
   const row = third.getByTestId("paper-row").first()
   await expect(row.getByTestId("paper-row-origin")).toHaveText("Feuille, visite du 10/10/2026")

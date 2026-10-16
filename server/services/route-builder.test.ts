@@ -1,5 +1,6 @@
 import { eq } from "drizzle-orm"
 import { beforeEach, describe, expect, it } from "vitest"
+import { listSessions } from "./sessions.ts"
 import { createTestContext } from "../../tests/helpers.ts"
 import type { AppContext } from "../context.ts"
 import { itineraries, itineraryDoors } from "../db/schema/index.ts"
@@ -7,7 +8,6 @@ import {
   addDoor,
   generateItinerary,
   getItinerary,
-  listItineraries,
   MAX_CANDIDATES,
   NoCandidateError,
   pointInPolygon,
@@ -266,8 +266,8 @@ describe("generateItinerary", () => {
     expect(r.itinerary.totalSeconds).toBe(760)
     expect(r.itinerary.doors.map((d) => d.arrivalSeconds)).toEqual([100, 380])
     expect(getItinerary(ctx, r.itinerary.id)).toEqual(r.itinerary)
-    expect(listItineraries(ctx)).toEqual([
-      expect.objectContaining({ id: r.itinerary.id, doorCount: 2, totalSeconds: 760, durationMinutes: 60, zoneLabel: "Zone tracée" }),
+    expect(listSessions(ctx)).toEqual([
+      expect.objectContaining({ id: r.itinerary.id, doorCount: 2, doorsDone: 0, totalSeconds: 760, durationMinutes: 60, zoneLabel: "Zone tracée", archivedAt: null }),
     ])
   })
 })

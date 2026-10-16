@@ -1,6 +1,6 @@
 // Route generator (U11, R12 to R14): candidates of a zone, KTD8 priorities and door times, no-voter cap,
 // then the solver behind the single interface of KTD2, and the stored itinerary the administrator adjusts.
-import { and, asc, desc, eq, gt, gte, inArray, isNotNull, isNull, notExists } from "drizzle-orm"
+import { and, asc, eq, gt, gte, inArray, isNotNull, isNull, notExists } from "drizzle-orm"
 import type { AppContext } from "../context.ts"
 import { addresses, fieldLinks, itineraries, itineraryDoors, registrations, visits } from "../db/schema/index.ts"
 import { loadParameters, type PriorityParameters } from "../domain/parameters.ts"
@@ -92,14 +92,6 @@ export interface ItineraryDetail {
   doors: ItineraryDoorView[]
 }
 
-export interface ItinerarySummary {
-  id: string
-  createdAt: number
-  zoneLabel: string
-  durationMinutes: number
-  doorCount: number
-  totalSeconds: number
-}
 
 export interface GenerateInput {
   zone: Zone
@@ -427,7 +419,7 @@ function saveItinerary(ctx: AppContext, input: SaveInput, existing = false): voi
   })
 }
 
-function parseZone(raw: string): Zone {
+export function parseZone(raw: string): Zone {
   const value: unknown = JSON.parse(raw)
   if (typeof value === "object" && value !== null && "type" in value) {
     if (value.type === "bureau" && "bureau" in value && typeof value.bureau === "string") return { type: "bureau", bureau: value.bureau }
@@ -499,21 +491,6 @@ export function getItinerary(ctx: AppContext, id: string): ItineraryDetail | nul
   }
 }
 
-export function listItineraries(ctx: AppContext): ItinerarySummary[] {
-  const rows = ctx.db.select().from(itineraries).orderBy(desc(itineraries.createdAt)).all()
-  const counts = new Map<string, number>()
-  for (const d of ctx.db.select({ itineraryId: itineraryDoors.itineraryId }).from(itineraryDoors).all()) {
-    counts.set(d.itineraryId, (counts.get(d.itineraryId) ?? 0) + 1)
-  }
-  return rows.map((r) => ({
-    id: r.id,
-    createdAt: r.createdAt,
-    zoneLabel: zoneLabel(parseZone(r.zone)),
-    durationMinutes: r.durationMinutes,
-    doorCount: counts.get(r.id) ?? 0,
-    totalSeconds: r.totalSeconds,
-  }))
-}
 
 /** Window large enough for any fixed set of doors, below UNREACHABLE_SECONDS so an unreachable door stays out. */
 const FIXED_SET_HORIZON_SECONDS = 10 * 24 * 3600

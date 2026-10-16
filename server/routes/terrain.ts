@@ -2,6 +2,7 @@
 // account. Every request is scoped to the itinerary of the token (KTD6) and anonymized at each request (KTD7).
 import { and, eq } from "drizzle-orm"
 import { Hono, type Context } from "hono"
+import { doorLabel, recordSessionEvent } from "../services/sessions.ts"
 import type { UnitView } from "../services/dwelling-units.ts"
 import type { AppContext } from "../context.ts"
 import { readJson } from "../lib/http.ts"
@@ -139,6 +140,7 @@ export function terrainRoutes(ctx: AppContext): Hono {
     const visitDate = entered === undefined ? undefined : entered < earliest ? earliest : entered > today ? today : entered
     try {
       const { visit, created } = recordVisit(ctx, { ...parsed.data, visitDate, source: "lien", itineraryId })
+      if (created) recordSessionEvent(ctx, itineraryId, "feedback_recorded", "lien", doorLabel(ctx, visit.addressId))
       return c.json({ id: visit.id, created }, created ? 201 : 200)
     } catch (err) {
       if (err instanceof VisitError) return notFound(c)
@@ -156,6 +158,7 @@ export function terrainRoutes(ctx: AppContext): Hono {
     if (!visit) return notFound(c)
     try {
       updateVisit(ctx, visit.id, parsed.data, { fromField: true })
+      recordSessionEvent(ctx, visit.itineraryId, "feedback_corrected", "lien", doorLabel(ctx, visit.addressId))
       return c.json({ id: visit.id })
     } catch (err) {
       if (err instanceof VisitError) return err.code === "empty_feedback" ? c.json({ error: err.code }, 422) : notFound(c)
@@ -171,6 +174,7 @@ export function terrainRoutes(ctx: AppContext): Hono {
     if (!visit) return notFound(c)
     try {
       deleteVisit(ctx, visit.id)
+      recordSessionEvent(ctx, visit.itineraryId, "feedback_deleted", "lien", doorLabel(ctx, visit.addressId))
       return c.json({ id: visit.id })
     } catch (err) {
       if (err instanceof VisitError) return notFound(c)

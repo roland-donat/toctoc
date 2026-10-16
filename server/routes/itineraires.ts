@@ -4,6 +4,19 @@ import { and, eq, ne } from "drizzle-orm"
 import { Hono } from "hono"
 import { z } from "zod"
 import type { UnitView } from "../services/dwelling-units.ts"
+import {
+  archiveSession,
+  assertActiveSession,
+  deleteSession,
+  doorLabel,
+  listSessionEvents,
+  listSessions,
+  recordSessionEvent,
+  renameSession,
+  restoreSession,
+  SessionError,
+  sessionSummary,
+} from "../services/sessions.ts"
 import type { AppContext } from "../context.ts"
 import { readJson } from "../lib/http.ts"
 import type { AgeBand } from "../db/schema/cheatsheets.ts"
@@ -18,7 +31,6 @@ import {
   generateItinerary,
   getItinerary,
   ItineraryError,
-  listItineraries,
   NoCandidateError,
   removeDoor,
   type ItineraryErrorCode,
@@ -176,6 +188,11 @@ const STATUS: Record<ItineraryErrorCode, 404 | 409 | 422> = {
   door_unreachable: 422,
 }
 
+const sessionPatchSchema = z
+  .object({ name: z.string().max(120).nullable().optional(), archived: z.boolean().optional() })
+  .strict()
+  .refine((v) => v.name !== undefined || v.archived !== undefined)
+
 /** Mounted at /api/itineraires. */
 export function itinerairesRoutes(ctx: AppContext, deps: RouteDeps = defaultRouteDeps(ctx)): Hono {
   const app = new Hono()
@@ -184,15 +201,44 @@ export function itinerairesRoutes(ctx: AppContext, deps: RouteDeps = defaultRout
     if (err instanceof RoutingUnavailableError) return c.json({ error: "routing_unavailable" }, 503)
     if (err instanceof NoCandidateError) return c.json({ error: "no_candidate" }, 422)
     if (err instanceof ItineraryError) return c.json({ error: err.code }, STATUS[err.code])
+    if (err instanceof SessionError) return c.json({ error: err.code }, err.code === "session_archived" ? 409 : 404)
     throw err
   })
 
-  app.get("/", (c) => c.json({ itineraries: listItineraries(ctx) }))
+  // Sessions TocToc: the active ones by default, the archived ones with ?archives=1.
+  app.get("/", (c) => c.json({ itineraries: listSessions(ctx, { archived: c.req.query("archives") === "1" }) }))
 
   app.post("/", async (c) => {
     const parsed = generateSchema.safeParse(await readJson(c.req.raw))
     if (!parsed.success) return c.json({ error: "invalid_body" }, 400)
-    return c.json(await generateItinerary(ctx, parsed.data, deps), 201)
+    const result = await generateItinerary(ctx, parsed.data, deps)
+    recordSessionEvent(ctx, result.itinerary.id, "created", "admin", result.itinerary.zoneLabel)
+    return c.json(result, 201)
+  })
+
+  // Name, archiving and restoring of a session.
+  app.patch("/:id", async (c) => {
+    const parsed = sessionPatchSchema.safeParse(await readJson(c.req.raw))
+    if (!parsed.success) return c.json({ error: "invalid_body" }, 400)
+    const id = c.req.param("id")
+    const { name, archived } = parsed.data
+    if (archived === false) restoreSession(ctx, id)
+    if (name !== undefined) renameSession(ctx, id, name)
+    if (archived === true) archiveSession(ctx, id)
+    return c.json(sessionSummary(ctx, id))
+  })
+
+  // Deletion of a session; its feedback goes with it unless ?retours=0 (the confirmation box is ticked by default).
+  app.delete("/:id", (c) => c.json(deleteSession(ctx, c.req.param("id"), { withFeedback: c.req.query("retours") !== "0" })))
+
+  app.get("/:id/resume", (c) => c.json(sessionSummary(ctx, c.req.param("id"))))
+
+  app.get("/:id/historique", (c) => {
+    const id = c.req.param("id")
+    if (!ctx.db.select({ id: itineraries.id }).from(itineraries).where(eq(itineraries.id, id)).get()) {
+      return c.json({ error: "itinerary_not_found" }, 404)
+    }
+    return c.json({ events: listSessionEvents(ctx, id) })
   })
 
   app.get("/:id", (c) => {
@@ -220,8 +266,7 @@ export function itinerairesRoutes(ctx: AppContext, deps: RouteDeps = defaultRout
     const parsed = reentrySchema.safeParse(await readJson(c.req.raw))
     if (!parsed.success) return c.json({ error: "invalid_body" }, 400)
     const id = c.req.param("id")
-    const it = ctx.db.select({ id: itineraries.id }).from(itineraries).where(eq(itineraries.id, id)).get()
-    if (!it) return c.json({ error: "itinerary_not_found" }, 404)
+    assertActiveSession(ctx, id)
     const doors = new Set(
       ctx.db
         .select({ addressId: itineraryDoors.addressId })
@@ -236,6 +281,7 @@ export function itinerairesRoutes(ctx: AppContext, deps: RouteDeps = defaultRout
     const results: ReentryResult[] = ctx.db.transaction(() =>
       feedbacks.map((f) => {
         const { visit, created } = recordVisit(ctx, { ...f, source: "feuille", itineraryId: id, visitDate })
+        if (created) recordSessionEvent(ctx, id, "feedback_recorded", "feuille", doorLabel(ctx, visit.addressId))
         const phone = ctx.db
           .select({ id: visits.id })
           .from(visits)
@@ -256,7 +302,9 @@ export function itinerairesRoutes(ctx: AppContext, deps: RouteDeps = defaultRout
   app.post("/:id/lien", (c) => {
     const id = c.req.param("id")
     if (!linkView(ctx, id)) return c.json({ error: "itinerary_not_found" }, 404)
+    assertActiveSession(ctx, id)
     const { token } = issueFieldLink(ctx, id)
+    recordSessionEvent(ctx, id, "link_issued", "admin")
     const url = `${new URL(ctx.config.publicOrigin).origin}/terrain#${token}`
     return c.json({ url, ...linkView(ctx, id) }, 201)
   })
@@ -265,6 +313,7 @@ export function itinerairesRoutes(ctx: AppContext, deps: RouteDeps = defaultRout
     const id = c.req.param("id")
     if (!linkView(ctx, id)) return c.json({ error: "itinerary_not_found" }, 404)
     revokeFieldLinks(ctx, id)
+    recordSessionEvent(ctx, id, "link_revoked", "admin")
     return c.json(linkView(ctx, id))
   })
 
@@ -272,20 +321,31 @@ export function itinerairesRoutes(ctx: AppContext, deps: RouteDeps = defaultRout
     const parsed = showNamesSchema.safeParse(await readJson(c.req.raw))
     if (!parsed.success) return c.json({ error: "invalid_body" }, 400)
     const id = c.req.param("id")
+    assertActiveSession(ctx, id)
     const updated = ctx.db.update(itineraries).set({ showNames: parsed.data.showNames }).where(eq(itineraries.id, id)).returning().all()
     if (updated.length === 0) return c.json({ error: "itinerary_not_found" }, 404)
+    recordSessionEvent(ctx, id, parsed.data.showNames ? "names_shown" : "names_hidden", "admin")
     return c.json(linkView(ctx, id))
   })
 
   app.post("/:id/portes", async (c) => {
     const parsed = addDoorSchema.safeParse(await readJson(c.req.raw))
     if (!parsed.success) return c.json({ error: "invalid_body" }, 400)
-    return c.json(await addDoor(ctx, c.req.param("id"), parsed.data.addressId, deps))
+    const id = c.req.param("id")
+    assertActiveSession(ctx, id)
+    const detail = await addDoor(ctx, id, parsed.data.addressId, deps)
+    recordSessionEvent(ctx, id, "door_added", "admin", doorLabel(ctx, parsed.data.addressId))
+    return c.json(detail)
   })
 
-  app.delete("/:id/portes/:addressId", async (c) =>
-    c.json(await removeDoor(ctx, c.req.param("id"), c.req.param("addressId"), deps)),
-  )
+  app.delete("/:id/portes/:addressId", async (c) => {
+    const id = c.req.param("id")
+    const addressId = c.req.param("addressId")
+    assertActiveSession(ctx, id)
+    const detail = await removeDoor(ctx, id, addressId, deps)
+    recordSessionEvent(ctx, id, "door_removed", "admin", doorLabel(ctx, addressId))
+    return c.json(detail)
+  })
 
   return app
 }

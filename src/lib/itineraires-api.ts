@@ -50,13 +50,43 @@ export interface ItineraryDetail {
   doors: ItineraryDoor[]
 }
 
-export interface ItinerarySummary {
+/** A session TocToc as the list shows it (15/10/2026). */
+export interface SessionSummary {
   id: string
+  name: string | null
   createdAt: number
   zoneLabel: string
   durationMinutes: number
-  doorCount: number
   totalSeconds: number
+  doorCount: number
+  doorsDone: number
+  feedbackCount: number
+  link: { state: FieldLinkState; expiresAt: number } | null
+  updatedAt: number
+  archivedAt: number | null
+}
+
+export type SessionEventKind =
+  | "created"
+  | "renamed"
+  | "door_added"
+  | "door_removed"
+  | "link_issued"
+  | "link_revoked"
+  | "names_shown"
+  | "names_hidden"
+  | "feedback_recorded"
+  | "feedback_corrected"
+  | "feedback_deleted"
+  | "archived"
+  | "restored"
+
+export interface SessionEvent {
+  id: number
+  at: number
+  kind: SessionEventKind
+  source: "admin" | "lien" | "feuille"
+  detail: string | null
 }
 
 export interface GenerateResult {
@@ -78,7 +108,31 @@ export const itineraryKey = (id: string) => ["itineraires", id] as const
 /** Selection report of a generation (left-out doors), kept in the client cache only: it is not stored. */
 export const generationKey = (id: string) => ["itineraires", id, "generation"] as const
 
-export const fetchItineraries = () => fetchJSON<{ itineraries: ItinerarySummary[] }>("/itineraires")
+export const sessionsKey = (archived: boolean) => ["itineraires", archived ? "archives" : "actives"] as const
+export const sessionSummaryKey = (id: string) => ["itineraires", id, "resume"] as const
+export const sessionHistoryKey = (id: string) => ["itineraires", id, "historique"] as const
+
+export const fetchSessions = (archived: boolean) =>
+  fetchJSON<{ itineraries: SessionSummary[] }>(`/itineraires${archived ? "?archives=1" : ""}`)
+
+export const fetchSessionSummary = (id: string) => fetchJSON<SessionSummary>(`/itineraires/${encodeURIComponent(id)}/resume`)
+
+export const fetchSessionHistory = (id: string) =>
+  fetchJSON<{ events: SessionEvent[] }>(`/itineraires/${encodeURIComponent(id)}/historique`)
+
+export const updateSession = (id: string, patch: { name?: string | null; archived?: boolean }) =>
+  fetchJSON<SessionSummary>(`/itineraires/${encodeURIComponent(id)}`, { method: "PATCH", body: JSON.stringify(patch) })
+
+export const deleteSession = (id: string, withFeedback: boolean) =>
+  fetchJSON<{ feedbackDeleted: number; feedbackKept: number }>(
+    `/itineraires/${encodeURIComponent(id)}${withFeedback ? "" : "?retours=0"}`,
+    { method: "DELETE" },
+  )
+
+/** Name of a session, or its creation date when it has none. */
+export function sessionTitle(s: { name: string | null; createdAt: number }): string {
+  return s.name ?? `Session du ${new Intl.DateTimeFormat("fr-FR", { dateStyle: "long", timeStyle: "short", timeZone: "Europe/Paris" }).format(new Date(s.createdAt))}`
+}
 
 export const fetchItinerary = (id: string) => fetchJSON<ItineraryDetail>(`/itineraires/${encodeURIComponent(id)}`)
 
@@ -137,7 +191,9 @@ export function itineraryErrorMessage(code: string): string {
     case "address_not_found":
       return "Adresse introuvable."
     case "itinerary_not_found":
-      return "Itinéraire introuvable."
+      return "Session introuvable."
+    case "session_archived":
+      return "Cette session est archivée : restaurez-la pour la modifier."
     default:
       return "Le calcul de l'itinéraire a échoué."
   }

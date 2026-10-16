@@ -4,10 +4,10 @@ Application de porte-à-porte militant.
 
 - Carte des portes : chaque adresse de la commune, qualifiée selon le potentiel de mobilisation de ses inscrits, avec le suivi des visites. Les vitrines recensées par OpenStreetMap signalent les commerces, pour ne pas les prendre pour des logements sans inscrit.
 - Statistiques : participation par tranche d'âge, bureau de vote et rue, pour savoir où porter l'effort.
-- Itinéraires : une zone et une durée choisies, TOCTOC propose une tournée à pied optimisée qui privilégie les portes au plus fort potentiel. Le calcul tourne sur le serveur lui-même.
+- Sessions TocToc : une zone et une durée choisies, TOCTOC propose une tournée à pied optimisée qui privilégie les portes au plus fort potentiel. Le calcul tourne sur le serveur lui-même. Chaque session se suit en direct (portes faites sur le total), se modifie en cours de route, s'archive ou se supprime, et garde l'historique de ses changements.
 - Lien terrain : chaque tournée a un lien privé à ouvrir sur téléphone, sans compte. Le militant y saisit ses retours porte par porte, y compris sans réseau. L'écran peut s'installer sur l'écran d'accueil.
 - Feuille imprimable : la même tournée sur papier, pour les sorties sans téléphone.
-- Suivi : retours datés, corrections, et date de dernier passage à chaque adresse.
+- Suivi : retours datés, corrections, et date de dernier passage à chaque adresse, depuis la session ou la fiche adresse.
 - Immeubles : chaque adresse garde la liste de ses logements (bâtiment, étage, porte), préremplie par les compléments d'adresse de la liste électorale et complétée sur place. On voit les logements visités sur le total, et les foyers rencontrés qui ne sont pas inscrits.
 
 Le code est sous licence GNU GPL v3 ou ultérieure (voir `LICENSE`).
@@ -32,9 +32,9 @@ L'administrateur prépare les tournées depuis un ordinateur ; les militants n'o
 1. Connexion : ouvrir l'adresse du serveur et saisir le mot de passe administrateur.
 2. Imports : charger les adresses de la commune depuis la Base adresse nationale, puis la liste électorale de la commune si disponible. TOCTOC rattache chaque électeur à une adresse et présente les cas douteux dans une file à trancher à la main.
 3. Carte et statistiques : repérer les quartiers et les rues où concentrer l'effort.
-4. Itinéraires : dessiner une zone sur la carte, ou choisir un bureau de vote, placer le point de départ, indiquer la durée de la tournée, puis « Calculer ».
+4. Sessions TocToc, « Nouvelle session » : dessiner une zone sur la carte, ou choisir un bureau de vote, placer le point de départ, indiquer la durée de la tournée, puis « Calculer ». La session se renomme, et l'ordre de visite se recalcule quand on ajoute ou retire une porte.
 5. Sur le terrain : émettre le lien de la tournée et l'envoyer au militant, ou imprimer la feuille. Sur le lien, chaque porte se coche d'un retour : absent, contact obtenu, à revenir, etc.
-6. Suivi : les retours arrivent au fur et à mesure. Ceux de la feuille papier se ressaisissent depuis l'écran Suivi de l'itinéraire.
+6. Suivi : la liste des sessions montre la progression de chacune ; les retours arrivent au fur et à mesure. Ceux de la feuille papier se ressaisissent dans l'onglet « Retours » de la session. Une session terminée s'archive : elle passe en lecture seule et son lien est révoqué.
 
 ## Créer son serveur
 

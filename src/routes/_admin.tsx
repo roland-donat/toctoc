@@ -22,8 +22,7 @@ export const Route = createFileRoute("/_admin")({
 const NAV_ITEMS = [
   { href: "/carte", label: "Carte" },
   { href: "/stats", label: "Statistiques" },
-  { href: "/itineraires", label: "Itinéraires" },
-  { href: "/suivi", label: "Suivi" },
+  { href: "/sessions", label: "Sessions TocToc" },
   { href: "/antiseches", label: "Antisèches" },
   { href: "/imports", label: "Imports" },
   { href: "/parametres", label: "Paramètres" },

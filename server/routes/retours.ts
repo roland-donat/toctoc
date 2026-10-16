@@ -1,5 +1,6 @@
 import { Hono } from "hono"
 import { z } from "zod"
+import { doorLabel, recordSessionEvent } from "../services/sessions.ts"
 import type { AppContext } from "../context.ts"
 import { readJson } from "../lib/http.ts"
 import { anonymize, namesAllowed } from "../domain/anonymize.ts"
@@ -73,7 +74,9 @@ export function retoursRoutes(ctx: AppContext): Hono {
     const parsed = visitPatchSchema.safeParse(await readJson(c.req.raw))
     if (!parsed.success) return c.json({ error: "invalid_body" }, 400)
     try {
-      return c.json(anonymize(updateVisit(ctx, c.req.param("id"), parsed.data), namesAllowed(ctx)))
+      const visit = updateVisit(ctx, c.req.param("id"), parsed.data)
+      recordSessionEvent(ctx, visit.itineraryId, "feedback_corrected", "admin", doorLabel(ctx, visit.addressId))
+      return c.json(anonymize(visit, namesAllowed(ctx)))
     } catch (err) {
       if (err instanceof VisitError) return c.json({ error: err.code }, ERROR_STATUS[err.code])
       throw err
@@ -84,6 +87,7 @@ export function retoursRoutes(ctx: AppContext): Hono {
   app.delete("/:id", (c) => {
     try {
       const visit = deleteVisit(ctx, c.req.param("id"))
+      recordSessionEvent(ctx, visit.itineraryId, "feedback_deleted", "admin", doorLabel(ctx, visit.addressId))
       return c.json({ id: visit.id, addressId: visit.addressId })
     } catch (err) {
       if (err instanceof VisitError) return c.json({ error: err.code }, ERROR_STATUS[err.code])

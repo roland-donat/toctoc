@@ -79,6 +79,14 @@ function seedFieldLink(db: Db, now: number): void {
     .values({ id: "e2e-lien-immeuble", itineraryId: "e2e-immeuble", tokenHash: sha256Hex(E2E_BUILDING_TOKEN), issuedAt: now, expiresAt: now + FIELD_LINK_VALIDITY_MS, revokedAt: null })
     .run()
   writeFileSync(E2E_BUILDING_TOKEN_FILE, E2E_BUILDING_TOKEN)
+
+  // A third session, only for the sessions spec, which renames, archives and deletes it.
+  db.insert(itineraries)
+    .values({ id: "e2e-a-supprimer", createdAt: now - 3_600_000, name: null, zone: JSON.stringify({ type: "bureau", bureau: "0001" }), startLat, startLon, durationMinutes: 30, totalSeconds: 600 })
+    .run()
+  db.insert(itineraryDoors)
+    .values({ itineraryId: "e2e-a-supprimer", addressId: building.id, position: 0, serviceSeconds: 300, walkSecondsFromPrevious: 60, priority: 10, manual: false })
+    .run()
 }
 
 /** The Géoplateforme is never called by the e2e run: unmatched addresses go to the manual queue. */

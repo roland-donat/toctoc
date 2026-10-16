@@ -19,7 +19,7 @@ function fixtureNames(): string[] {
 }
 
 test("the printable sheet lists the doors in visit order, without any name, and hides the admin navigation on paper", async ({ page }) => {
-  await openAsAdmin(page, "/itineraires/e2e-itineraire/feuille")
+  await openAsAdmin(page, "/sessions/e2e-itineraire/feuille")
 
   const rows = page.getByTestId("sheet-door")
   await expect(rows).toHaveCount(3)
