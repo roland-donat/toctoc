@@ -88,7 +88,15 @@ reach_internet toctoc data.geopf.fr
 
 echo "== Containment of Caddy (user caddy)"
 reach caddy 127.0.0.1 3000 open
-for port in $(other_ports 3000 80 443); do reach caddy 127.0.0.1 "$port" blocked; done
+# Local ports of other services this Caddy proxies to (see the Caddyfile): open, and every other port blocked.
+UPSTREAMS=()
+if [[ -f /etc/toctoc/caddy-upstreams ]]; then
+  while read -r port _; do [[ $port =~ ^[0-9]{1,5}$ ]] && UPSTREAMS+=("$port"); done < /etc/toctoc/caddy-upstreams
+fi
+for port in "${UPSTREAMS[@]}"; do
+  if ss -ltnH "sport = :$port" | grep -q .; then reach caddy 127.0.0.1 "$port" open; else report FAIL "caddy upstream $port listed but nothing listens"; fi
+done
+for port in $(other_ports 3000 80 443 "${UPSTREAMS[@]}"); do reach caddy 127.0.0.1 "$port" blocked; done
 lan_checks caddy
 reach_internet caddy acme-v02.api.letsencrypt.org
 
