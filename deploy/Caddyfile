@@ -19,3 +19,8 @@
 	reverse_proxy 127.0.0.1:3000
 	# No access log: request paths of the field space must not be kept, and nothing else needs them.
 }
+
+# Sites of other services of this server, installed by their own deployments (none is required). Each one Caddy
+# proxies to a local port must also list that port in /etc/toctoc/caddy-upstreams, or the egress containment
+# blocks it.
+import /etc/caddy/conf.d/*.caddy

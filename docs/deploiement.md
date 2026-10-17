@@ -101,6 +101,7 @@ Le serveur est exposé sur Internet depuis le réseau local. L'installation limi
 - Cloisonnement réseau sortant (`deploy/system/toctoc-egress.nft`, chargé par `toctoc-egress.service`, dont dépendent l'application et Caddy) :
   - ni l'application ni Caddy n'atteignent le réseau local, préfixe IPv6 public compris, sauf les serveurs DNS de la machine ;
   - sur la machine elle-même, l'application n'atteint qu'OSRM et VROOM, et Caddy que l'application : les autres services du serveur restent hors de portée.
+  - un autre service du serveur peut faire servir son site par ce même Caddy : il dépose son bloc dans `/etc/caddy/conf.d/<nom>.caddy` (importé par le Caddyfile) et inscrit son port local, un par ligne, dans `/etc/toctoc/caddy-upstreams`. Caddy n'atteint que ces ports en plus de l'application, et `bin/toctoc-check-cyber` vérifie que chacun répond et que tous les autres restent bloqués.
 - L'API d'administration de Caddy est désactivée : aucun processus local ne peut réécrire sa configuration.
 - Le code installé dans `/opt/toctoc` appartient à root : l'application ne peut pas le modifier. Les dépendances se compilent sous le compte `toctoc`, jamais sous root, et root n'exécute que des fichiers tirés d'une copie propre du paquet git.
 - La taille des requêtes est plafonnée par Caddy (25 Mo) et par l'application (64 ko sur la connexion et l'espace terrain). La mémoire du service est plafonnée à 1 Go.
